@@ -9,4 +9,6 @@ services:
     <<: [ *{{cookiecutter.app_type}} ]
   zeo:
     <<: [ *{{cookiecutter.app_type}} ]
+  backup:
+    <<: [ *{{cookiecutter.app_type}} ]
 {%- endif %}

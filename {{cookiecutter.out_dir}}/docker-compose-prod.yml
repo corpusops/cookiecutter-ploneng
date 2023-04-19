@@ -49,7 +49,7 @@ services:
   db:
     <<: [ *restart, *log ]
   backup:
-    <<: [ {% if 'zeo' in cookiecutter.db_mode%}*{{cookiecutter.app_type}}, {%endif%}*restart, *log ]
+    <<: [ *restart, *log ]
 {%- if 'zeo' not in cookiecutter.db_mode%}
     volumes:
     - backupdb-dumps:/var/db_smart_backup

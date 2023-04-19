@@ -82,6 +82,7 @@ x-images:
 {%- endif %}
 {%- endmacro %}
 {%- macro plone_assets() %}
+    - data:/data
     - "${DATA_VOLUME:-./data}:/app/data"
     - docs:/app/outdocs
 {%- if cookiecutter.with_ftp %}
@@ -161,7 +162,7 @@ services:
     - 'redis:/data'
 {%- endif %}
 {%- endif %}
-  db:
+  db: &db
     <<: [ *env ]
     image: "{{cookiecutter["{0}_image".format(cookiecutter.db_mode)]}}"
     volumes:
@@ -175,13 +176,14 @@ services:
     <<: [ *env ]
     image: "{{cookiecutter.dbsmartbackup_image}}"
 {%- else %}
-    <<: [ *{{cookiecutter.app_type}} ]
+    image: "{{cookiecutter["{0}_image".format(cookiecutter.db_mode)]}}"
+    <<: [ *db ]
     environment:
       <<: [ *plone_env ]
       IMAGE_MODE: backup
     volumes:
+    - data:/data
 {{- plone_assets() }}
-    - /var/run:/host_run
     depends_on: [ {{cookiecutter.app_type}}, db ]
 {%- endif %}
   nginx:

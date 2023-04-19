@@ -18,7 +18,8 @@ x-images:
         VSCODE_VERSION: "${VSCODE_VERSION-}"
 services:
 {%- if not cookiecutter.remove_cron %}
-  db: {<<: [ *{{cookiecutter.app_type}} ], build: {<<: [ *build ], dockerfile: Dockerfile.zeo}}
+  db: &db {<<: [ *{{cookiecutter.app_type}} ], build: {<<: [ *build ], dockerfile: Dockerfile.zeo}}
+  backup: {<<: [ *db ]}
   cron: {<<: [ *{{cookiecutter.app_type}} ]}
 {%-endif%}
   {{cookiecutter.app_type}}: {<<: [ *{{cookiecutter.app_type}} ]}
