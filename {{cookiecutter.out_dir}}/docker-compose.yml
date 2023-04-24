@@ -14,6 +14,14 @@ x-images:
       CORS_EXPOSE_HEADERS: "${CORS_EXPOSE_HEADERS:-Content-Length,X-My-Header}"
       CORS_ALLOW_HEADERS: "${CORS_ALLOW_HEADERS:-Authorization,Content-Type,Accept,Origin,User-Agent,DNT,Cache-Control,X-Mx-ReqToken,Keep-Alive,X-Requested-With,If-Modified-Since}"
       CORS_MAX_AGE: "${CORS_MAX_AGE:-3600}"
+      PLONE__DEFAULT_FROM: "${PLONE__DEFAULT_FROM:-Administrator}"
+      PLONE__DEFAULT_FROM_EMAIL: "${PLONE__DEFAULT_FROM_EMAIL:-root@localhost}"
+      PLONE__EMAIL_USE_TLS: "${PLONE__EMAIL_USE_TLS:-}"
+      PLONE__EMAIL_USE_SSL: "${PLONE__EMAIL_USE_SSL:-}"
+      PLONE__EMAIL_HOST: "${PLONE__EMAIL_HOST:-mailcatcher}"
+      PLONE__EMAIL_PORT: "${PLONE__EMAIL_PORT:-25}"
+      PLONE__EMAIL_HOST_USER: "${PLONE__EMAIL_HOST_USER:-mailcatcher}"
+      PLONE__EMAIL_HOST_PASSWORD: "${PLONE__EMAIL_HOST_PASSWORD:-mailcatcher}"
 {%- if cookiecutter.cache_system%}
 {%-  if cookiecutter.cache_system == 'redis' %}
       REDIS_URL: "${REDIS_URL:-redis://redis:6379/1}"
@@ -82,8 +90,8 @@ x-images:
 {%- endif %}
 {%- endmacro %}
 {%- macro plone_assets() %}
-    - data:/data
     - "${DATA_VOLUME:-./data}:/app/data"
+    - pdata:/data
     - docs:/app/outdocs
 {%- if cookiecutter.with_ftp %}
     - "ftp-root:${PLONE__FTP_ROOT:-/ftp}"
@@ -176,14 +184,11 @@ services:
     <<: [ *env ]
     image: "{{cookiecutter.dbsmartbackup_image}}"
 {%- else %}
-    image: "{{cookiecutter["{0}_image".format(cookiecutter.db_mode)]}}"
     <<: [ *db ]
     environment:
       <<: [ *plone_env ]
       IMAGE_MODE: backup
-    volumes:
-    - data:/data
-{{- plone_assets() }}
+    volumes: [data:/data, "${DATA_VOLUME:-./data}:/app/data"]
     depends_on: [ {{cookiecutter.app_type}}, db ]
 {%- endif %}
   nginx:
@@ -217,6 +222,7 @@ volumes:
   postgresql:
 {% else %}
   data:
+  pdata:
 {%- endif%}
 {%- if cookiecutter.cache_system in ['redis']%}
   {{cookiecutter.cache_system}}:

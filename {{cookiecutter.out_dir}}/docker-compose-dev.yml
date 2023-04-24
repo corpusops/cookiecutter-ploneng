@@ -25,9 +25,6 @@ x-images:
     - ./sys/sudoer:/etc/sudoers.d/$APP_TYPE
     - ./sys/init.sh:/app/init/init.sh
 {%- endif%}
-{%- if not cookiecutter.no_lib %}
-    - ./src.ext:/app/src.ext
-{%- endif%}
     - ./local:/app/local
 {%- if cookiecutter.with_bundled_front %}
     - ./frontend:/app/frontend
@@ -72,6 +69,7 @@ services:
     - "${PLONE__DB_OUT_LISTEN:-0.0.0.0}:${PLONE__DB_OUT_PORT:-{{cookiecutter.db_out_port}}}:8100"
     volumes:
     - ./sys:/app/sys
+{%- macro dbvol() %}
 {%- if cookiecutter.no_local_volumes %}
 {%- endif%}
 {%-  if cookiecutter.use_submodule_for_deploy_code %}
@@ -81,6 +79,7 @@ services:
     - ./sys/sudoer:/etc/sudoers.d/$APP_TYPE
     - ./sys/zeo-init.sh:/app/init/zeo-init.sh
 {%- endif%}
+{%- endmacro %}
   mailcatcher:
     ports:
     - "${PLONE__MAILCATCHER_LISTEN:-0.0.0.0}:${PLONE__MAILCATCHER_PORT:-8025}:8025"

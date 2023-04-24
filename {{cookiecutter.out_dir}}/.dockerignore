@@ -9,7 +9,6 @@ docker-compose*
 /local/local*
 /local/media
 /local/out
-/local/private
 /local/public
 /local/regen.orig.sh
 /local/regen.sh

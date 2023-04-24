@@ -97,7 +97,7 @@ variables: &variables
   # Allow to have many compose stacks aside.
   COMPOSE_PROD_CONFIGS: docker-compose.yml:docker-compose-prod.yml:docker-compose-build.yml
   COMPOSE_DEV_CONFIGS:  docker-compose.yml:docker-compose-dev.yml:docker-compose-build.yml:docker-compose-build-dev.yml
-  DOCKER_VOLUMES: "data:/app/data mediafiles:/app/public/media statics:/app/public/statics privatefiles:/app/private docs:/app/outdocs data:$CI_PROJECT_DIR/data mediafiles:$CI_PROJECT_DIR/public/media statics:$CI_PROJECT_DIR/public/statics privatefiles:$CI_PROJECT_DIR/private docs:$CI_PROJECT_DIR/outdocs"
+  DOCKER_VOLUMES: "data:/app/data mediafiles:/app/public/media statics:/app/public/statics docs:/app/outdocs data:$CI_PROJECT_DIR/data mediafiles:$CI_PROJECT_DIR/public/media statics:$CI_PROJECT_DIR/public/statics docs:$CI_PROJECT_DIR/outdocs"
   DEPLOY_PLAYBOOK: "{{cookiecutter.deploy_playbook}}"
   DOCKER_BUILDER:     corpusops
   DOCKER_CACHE:         /cache/$CI_PROJECT_PATH_SLUG/dockercache
@@ -548,6 +548,14 @@ force_build_ci_images: &force_build_ci_images
       CORS_EXPOSE_HEADERS: "Content-Length,X-My-Header"
       CORS_ALLOW_HEADERS: "Accept,Authorization,Content-Type,X-Custom-Header,Lock-Tokenx}"
       CORS_MAX_AGE: "CORS_MAX_AGE:-3600"
+      PLONE__DEFAULT_FROM: "Administrator"
+      PLONE__DEFAULT_FROM_EMAIL: "root@localhost"
+      PLONE__EMAIL_USE_TLS: ""
+      PLONE__EMAIL_USE_SSL: ""
+      PLONE__EMAIL_HOST: "mailcatcher"
+      PLONE__EMAIL_PORT: "25"
+      PLONE__EMAIL_HOST_USER: "mailcatcher"
+      PLONE__EMAIL_HOST_PASSWORD: "mailcatcher"
       DB_MODE: "{{cookiecutter.db_mode}}"
       NGINX_SERVERNAME: "{{cookiecutter.name}}.local"
       NGINX_SERVER_ALIASES: "www.{{cookiecutter.name}}.local www2.{{cookiecutter.name}}.local"

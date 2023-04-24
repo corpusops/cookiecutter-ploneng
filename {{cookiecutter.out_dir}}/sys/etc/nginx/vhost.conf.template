@@ -23,18 +23,18 @@
 {{'{{-'}} $v := merge $v ( dict "ssl_ciphers"                 ( .Env.NGINX_SSL_CIPHERS | default $dciphers )                                 ) }}
 {{'{{-'}} $v := merge $v ( dict "ssl_protocols"               ( .Env.NGINX_SSL_PROTOCOLS | default "TLSv1 TLSv1.1 TLSv1.2" )                 ) }}
 {{'{{-'}} $v := merge $v ( dict "log_level"                   ( .Env.NGINX_LOGLEVEL | default "crit" )                                       ) }}
-{{'{{-'}} $v := merge $v ( dict "xscriptname"                 ( .Env.PLONE__FORCE_SCRIPT_NAME | default "" )                                ) }}
+{{'{{-'}} $v := merge $v ( dict "xscriptname"                 ( .Env.PLONE__FORCE_SCRIPT_NAME | default "" )                                 ) }}
 {%- if cookiecutter.with_bundled_docs %}
-{{'{{-'}} $v := merge $v ( dict "has_doc"                     ( .Env.PLONE__HAS_DOC | default "1" )                                         ) }}
+{{'{{-'}} $v := merge $v ( dict "has_doc"                     ( .Env.PLONE__HAS_DOC | default "1" )                                          ) }}
 {%- endif %}
-{{'{{-'}} $v := merge $v ( dict "base_dir"                    ( .Env.BASE_DIR | default ( print "/app" ))                                   ) }}
+{{'{{-'}} $v := merge $v ( dict "base_dir"                    ( .Env.BASE_DIR | default ( print "/app" ))                                    ) }}
 {{'{{-'}} $v := merge $v ( dict "doc_dir"                     ( .Env.BASE_DIR | default ( print $v.base_dir "/docs" ))                       ) }}
 {{'{{-'}} $v := merge $v ( dict "media_dir"                   ( .Env.BASE_DIR | default ( print $v.base_dir "/public/media" ))               ) }}
 {{'{{-'}} $v := merge $v ( dict "static_dir"                  ( .Env.BASE_DIR | default ( print $v.base_dir "/public/static" ))              ) }}
 {{'{{-'}} $v := merge $v ( dict "private_dir"                 ( .Env.BASE_DIR | default ( print $v.base_dir "/private" ))                    ) }}
-{{'{{-'}} $v := merge $v ( dict "data_dir"                 ( .Env.BASE_DIR | default ( print $v.base_dir "/data" ))                    ) }}
+{{'{{-'}} $v := merge $v ( dict "data_dir"                    ( .Env.BASE_DIR | default ( print $v.base_dir "/data" ))                       ) }}
 {{'{{-'}} $v := merge $v ( dict "maintenance_flag"            ( .Env.NGINX_PLONE_MAINT_FLAG | default ( print $v.data_dir "/flags/MAINTENANCE" ) ) ) }}
-{{'{{-'}} $v := merge $v ( dict "plonesite"            ( .Env.PLONE_SITE | default ( print "Plone" ) ) ) }}
+{{'{{-'}} $v := merge $v ( dict "plonesite"                   ( .Env.PLONE_SITE | default ( print "Plone" ))                                  ) }}
 
 
 # optimize internal nginx buffers
@@ -80,21 +80,28 @@ map $forwarded_ssl_scheme $fastcgi_ssl_toggle                 {default $https;ht
 map $http_x_ssl_resolved  $forwarded_remote_server_port       {default $remote_port;1 443;}
 map $http_x_ssl_resolved  $forwarded_static_server_port       {default 80;1 443;}
 map $http_x_ssl_resolved  $forwarded_server_port              {default $server_port;1 443;}
-map $http_x_ssl_resolved  $forwarded_server_port              {default $server_port;1 443;}
 map $http_x_ssl_resolved  $http_x_forwarded_protocol_resolved {default tcp;1 ssl;}
 map $http_x_ssl_resolved  $http_x_forwarded_ssl_resolved      {default off;1 on;}
 map $http_x_ssl_resolved  $http_x_forwarded_proto_resolved    {default http;1 https;}
 
 # Obtain best http host
 map $http_host $this_host {
-    default          $http_host;
+    "~(?<rthis_host>[^:]+)"       "$rthis_host";
     ''               $host;
 }
 map $http_x_forwarded_host $best_http_host {
-    default          $http_x_forwarded_host;
+    "~^(?<rbest_http_host>[^:]+):?"  "$rbest_http_host";
     ''               $this_host;
 }
-
+map $http_referer $zmiroot_uri {
+   "~(?<rzmiroot_uri>$forarded_ssl_scheme://$best_http_host(?::$server_port)?/[^/]+-zmiroot)/?" "$rzmiroot_uri";
+   default "";
+}
+map "$http_host:$forwarded_server_port" $pforwarded_server_port {
+    "~(?<rpforwarded_server_port>:[^:]+)(?::.*$)" "$rpforwarded_server_port";
+    default ":$forwarded_server_port";
+}
+ 
 {{'{{'}} define "notimeout" }}
 # 10 days timeout
 proxy_connect_timeout   864000;
@@ -227,14 +234,21 @@ server {
     }
 {{'{{'}} end }}
 {%- endif %}
-
-    location /zmiroot/ {
+    # hack to make ZMIRoot plone @sites browserview working
+    location ~ ^/@sites/?$ {
         {{'{{'}} template "notimeout" }}
-        rewrite ^/(.*)$ /VirtualHostBase/$forwarded_ssl_scheme/$best_http_host:$forwarded_server_port/VirtualHostRoot/$1 break;
-        proxy_pass  http://up_plone;
+        return 302 $http_referer/$zmiroot_uri/@sites;
     }
+
+#{{/* does not work on plone6
+#    location /zmiroot/ {
+#        {{'{{'}} template "notimeout" }}
+#        rewrite ^/(?<ruri>.*)$ /VirtualHostBase/$forwarded_ssl_scheme/$best_http_host$pforwarded_server_port/VirtualHostRoot/_vh_$ruri break;
+#        proxy_pass  http://up_plone;
+#    }
+#*/}}
     location / {
-        rewrite ^/(.*)$ /VirtualHostBase/$forwarded_ssl_scheme/$best_http_host:$forwarded_server_port/{{.plonesite}}/VirtualHostRoot/$1 break;
+        rewrite ^/(?<ruri>.*)$ /VirtualHostBase/$forwarded_ssl_scheme/$best_http_host$pforwarded_server_port/{{'{{'}}.plonesite}}/VirtualHostRoot/$ruri break;
         proxy_pass  http://up_plone;
     }
 

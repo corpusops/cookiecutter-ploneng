@@ -33,3 +33,4 @@ requests>=2.25.0
 # leave those tools to let debug in hosted envs
 remote-pdb
 pdb_clone
+pdbpp
