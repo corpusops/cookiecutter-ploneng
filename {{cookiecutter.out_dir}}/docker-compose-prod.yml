@@ -1,0 +1,54 @@
+version: '{{cookiecutter.compose_version}}'
+x-images:
+  x-log: &log
+    depends_on: [log]
+    logging: {driver: syslog, options: {tag: '{{'{{'}}index .ContainerLabels "com.docker.compose.service"}}', syslog-address: "tcp://${SYSLOG_ADDRESS:-127.0.0.1}:${SYSLOG_PORT:-{{cookiecutter.syslog_port}}}"}}
+  x-restart: &restart
+    restart: unless-stopped
+  x-{{cookiecutter.app_type}}: &{{cookiecutter.app_type}}
+    <<: [ *restart ]
+    image: "${{'{'}}{{cookiecutter.app_type.upper()}}_IMAGE}:${{'{'}}{{cookiecutter.app_type.upper()}}_IMAGE_VERSION}"
+    volumes:
+    - logs:/logs
+{%- if not cookiecutter.no_local_volumes %}
+{%- endif %}
+services:
+  log:
+    <<: [ *restart ]
+    volumes: [logs:/var/log]
+    ports: ["${SYSLOG_ADDRESS:-127.0.0.1}:${SYSLOG_PORT:-{{cookiecutter.syslog_port}}}:10514"]
+{%- if cookiecutter.with_ftp %}
+{%- if cookiecutter.with_ftp in ['ftp']%}
+  ftp-int:
+    <<: [ *restart, *log ]
+{%- endif%}
+  ftp:
+    <<: [ *restart, *log ]
+{%- endif %}
+  nginx:
+    <<: [ *restart, *log ]
+    ports:
+    - "${PLONE__HTTP_LISTEN:-0.0.0.0}:${PLONE__HTTP_PORT:-80}:80"
+  {{cookiecutter.app_type}}:
+    <<: [ *{{cookiecutter.app_type}} ]
+    ports:
+    - "${PLONE__API_LISTEN:-127.0.0.1}:${PLONE__API_PORT:-8000}:8000"
+{%- if not cookiecutter.remove_cron %}
+  cron:
+    <<: [ *{{cookiecutter.app_type}} ]
+{%- endif%}
+  mailcatcher:
+    <<: [ *restart, *log ]
+{%- if cookiecutter.cache_system%}
+  {{cookiecutter.cache_system}}:
+    <<: [ *restart, *log ]
+{% endif%}
+  db:
+    <<: [ *restart, *log ]
+  backup:
+    <<: [ *restart, *log ]
+    volumes:
+    - backupdb-dumps:/var/db_smart_backup
+volumes:
+  backupdb-dumps:
+  logs:

@@ -1,0 +1,95 @@
+---
+{{cookiecutter.app_type}}_servers: {{cookiecutter.lname}}_servers
+cops_{{cookiecutter.app_type}}_name: "{{cookiecutter.lname}}"
+cops_plone_project_module_name: "{{cookiecutter.plone_project_name}}"
+cops_{{cookiecutter.app_type}}_tld_domain: "{{cookiecutter.tld_domain}}"
+cops_{{cookiecutter.app_type}}_mail_domain: "{{ cookiecutter.mail_domain }}"
+cops_{{cookiecutter.app_type}}_docker_image: "{{cookiecutter.docker_image}}"
+cops_{{cookiecutter.app_type}}_gitref: "{{'{{'}}lookup('env', 'CI_COMMIT_TAG_NAME') or lookup('env', 'CI_COMMIT_REF_NAME') or 'latest'}}"
+cops_plone_gunicorn_class: "{{cookiecutter.gunicorn_class}}"
+{% if 'post' in cookiecutter.db_mode -%}
+cops_{{cookiecutter.app_type}}_postgres_startup_timeout: 45s
+{%- endif %}
+cops_{{cookiecutter.app_type}}_docker_env_extra: ""
+cops_{{cookiecutter.app_type}}_dotenv_extra: |-
+  crons_mysupercron={{"{{"}}cops_plone_crons_mysupercron}}
+  # db
+  {% if 'post' in cookiecutter.db_mode %}POSTGRES_STARTUP_TIMEOUT={{'{{'}}cops_{{cookiecutter.app_type}}_postgres_startup_timeout}}{% endif %}
+  #
+{% if cookiecutter.with_ftp %}
+  PLONE__FTP_PUBLICHOST={{'{{'}}cops_plone_ftp_ip}}
+  PLONE__FTP_LISTEN={{'{{'}}cops_plone_ftp_listen}}
+  PLONE__FTP_PASSWORD={{'{{'}}cops_plone_ftp_password}}
+  PLONE__FTP_ROOT={{'{{'}}cops_plone_ftp_root}}
+  PLONE__FTP_USER={{'{{'}}cops_plone_ftp_user}}
+  PLONE__USER_UID={{'{{'}}cops_plone_user_uid}}
+  {{'{%'}} if cops_plone_ftp_mode in ['ftp'] %}
+  PLONE__FTP_PORT_RANGE={{'{{'}}cops_plone_ftp_port_range.replace(' ', '-')}}
+  PLONE__FTP_INTERNAL_PUBLICHOST={{'{{'}}cops_plone_ftp_internal_publichost}}
+  {{'{%'}} endif%}
+{% endif %}
+cops_plone_restarted_services: "{{"{{"}}cops_plone_restarted_services_default{% if cookiecutter.cache_system and (cookiecutter.cache_system != 'redis') %}.replace(
+    'redis', '{{cookiecutter.cache_system}}'){%endif
+    %}.replace(' plone', ' plone{% if cookiecutter.with_ftp %} ftp {% if cookiecutter.with_ftp in ['ftp']%}ftp-int{%endif%}{%endif%}')}}"
+cops_plone_http_protect_user: "root"
+cops_plone_http_protect_password: "rootroot"
+{% set jscomment = (not cookiecutter.with_bundled_front) and '#  ' or '' %}
+{{jscomment}}# cops_plone_code_sync_theme_contents: "{{'{{'}}cops_plone_code_sync_theme_contents_front}}"
+{{jscomment}}cops_plone_code_sync_theme_contents: "{{'{{'}}cops_plone_code_sync_theme_contents_webpack}}"
+cops_plone_crons_mysupercron: false
+{% if cookiecutter.with_ftp %}
+cops_plone_ftp_host: "{{'{{'}}cops_plone_ftp_int_host}}"
+cops_plone_ftp_port: {{cookiecutter.ftp_port}}
+cops_plone_ftp_ip: "{{'{{'}}corpusops_network_live_ext_ip|default('')}}"
+cops_plone_ftp_internal_publichost: ""
+cops_plone_ftp_mode: "{{cookiecutter.with_ftp in ['ssh'] and cookiecutter.with_ftp or 'ftp'}}"
+{% if cookiecutter.with_ftp in ['ftp'] %}
+cops_plone_ftp_int_host: ftp-int
+cops_plone_ftp_int_port: {{cookiecutter.ftp_port}}
+cops_plone_ftp_port_range_start: {{cookiecutter.ftp_port_range_start}}
+cops_plone_ftp_port_range_len: {{cookiecutter.ftp_port_len}}
+cops_plone_ftp_port_range_end: "{{'{{'}}(cops_plone_ftp_port_range_start|int) + (cops_plone_ftp_port_range_len|int)}}"
+cops_plone_ftp_port_range: "{{'{{'}}cops_plone_ftp_port_range_start}} {{'{{'}}cops_plone_ftp_port_range_end}}"
+{% endif %}
+cops_plone_ftp_listen: 0.0.0.0
+cops_plone_ftp_user: ftp
+cops_plone_has_ftp: true
+cops_plone_ftp_root: {{cookiecutter.ftp_root}}
+{% endif%}
+cops_plone_user_uid: 1000
+cops_plone_generic_db_mode: {{cookiecutter.generic_db_mode}}
+cops_plone_db_mode: {{cookiecutter.db_mode}}
+
+# teleport adds example
+# {{cookiecutter.lname}}_paths_makinastates:
+#   datadir1: "/srv/projects/{{'{{'}}teleport_ms_project}}/data/datadir1"
+# {{cookiecutter.lname}}_paths_default:
+#   datadir1: "{{'{{'}}teleport_wd}}/data/datadir1"
+# {{cookiecutter.lname}}_paths: "{{'{{'}}lookup('vars', '{{cookiecutter.lname}}_paths_'+_teleport_mode)}}"
+# {{cookiecutter.lname}}_sync_files_extra:
+#   datajson:
+#     origin_path: "{{'{{'}}{{cookiecutter.lname}}_paths.datajson}}"
+#     container: "{{'{{'}}teleport_app_container}}"
+#     container_path: /app/public/static/
+#     rsync_args: "-azv"
+#   datadir1:
+#     container: "{{'{{'}}teleport_app_container}}"
+#     origin_path: "{{'{{'}}{{cookiecutter.lname}}_paths.datadir1}}/"
+#     container_path: /app/data/datadir1/
+#
+# teleport_sync_files: |-
+#   {{'{%'}}- set ret = {} %}
+#   {{'{%'}}- set _ = ret.update(teleport_sync_files_default) %}
+#   {{'{%'}}- set _ = ret.update({{cookiecutter.lname}}_sync_files_extra) %}
+#   {{'{{'}}- ret|to_json}}
+# teleport_post_reset_script: |-
+#   {{'{{'}}teleport_post_reset_script_default}}
+#   cd "{{'{{'}}teleport_wd}}"
+#   {{'{{'}}cops_plone_drun}} sh -ex - <<EOF
+#   /app/sys/scripts/mysuperscript.sh
+#   EOF
+#   cd "{{'{{'}}teleport_wd}}"
+#   {{'{{'}}cops_plone_drun}} python <<EOF
+#   print('helloworld')
+#   EOF
+# teleport_ms_project: {{cookiecutter.lname}}

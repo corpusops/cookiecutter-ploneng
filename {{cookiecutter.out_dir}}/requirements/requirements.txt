@@ -1,0 +1,39 @@
+# core
+
+# libs
+
+# connectors
+{% if cookiecutter.cache_system == 'redis'-%}
+{%- if cookiecutter.plone_ver_1[0]|int >= 4 %}
+plone-redis>=5.2.0
+{%- else %}
+plone-redis>=4.9,<4.10
+{%- endif %}
+{%endif-%}
+{%- if cookiecutter.cache_system == 'memcached'%}
+python-memcached
+{%endif %}
+{%- if cookiecutter.with_pil %}
+plone-versatileimagefield>=1.10,<2.0
+Pillow>=5.3.0,<6.0.0
+{%- endif %}
+{%- if cookiecutter.with_ia_libs %}
+# IASD
+numpy
+pandas
+tensorflow
+keras
+begins
+{%- endif %}
+{%- if cookiecutter.with_sentry %}
+# sentry (need requests)
+raven==6.10.0
+{%- endif%}
+requests>=2.25.0
+
+# webserver
+gunicorn{%if cookiecutter.gunicorn_class not in ['gaiohttp', 'sync']%}[{{cookiecutter.gunicorn_class}}]{%endif%}>=19.9
+
+# leave those tools to let debug in hosted envs
+remote-pdb
+pdb_clone

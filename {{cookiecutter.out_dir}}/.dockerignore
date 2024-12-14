@@ -1,0 +1,15 @@
+docker-compose*
+/.gitlab-ci.yml
+/local/code
+/local/local*
+/local/media
+/local/out
+/local/private
+/local/public
+/local/regen.orig.sh
+/local/regen.sh
+/local/static
+/local/tox*
+/media
+/node_modules
+/.tox

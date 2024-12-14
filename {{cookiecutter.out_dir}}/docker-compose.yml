@@ -1,0 +1,216 @@
+{%- set db_tag = 'post' in cookiecutter.db_mode and 'postgres' or cookiecutter.db_mode %}
+version: '{{cookiecutter.compose_version}}'
+x-images:
+  env: &env
+    env_file: [.env, docker.env]
+    environment: &env_vars
+{%- if cookiecutter.cache_system%}
+{%-  if cookiecutter.cache_system == 'redis' %}
+      REDIS_URL: "${REDIS_URL:-redis://redis:6379/1}"
+{%- elif cookiecutter.cache_system == 'memcached' %}
+      MEMCACHED_URL: "${MEMCACHED_URL:-memcached:11211}"
+{%- else %}
+      {{cookiecutter.cache_system.upper()}}_URL: "${{'{'}}{{cookiecutter.cache_system.upper()}}_URL:-{{cookiecutter.cache_system}}{{'}'}}"
+{%- endif%}
+{%- endif%}
+      DB_MODE: "${DB_MODE:-{{cookiecutter.db_mode}}}"
+{%- if 'post' in cookiecutter.db_mode %}
+      POSTGRES_HAS_POSTGIS: "{% if cookiecutter.with_postgist_test and 'gis' in cookiecutter.db_mode%}1{%endif%}"
+      POSTGRES_HOST: "${POSTGRES_HOST:-db}"
+      POSTGRES_PORT: "${POSTGRES_PORT:-5432}"
+      POSTGRES_DB: "${POSTGRES_DB:-db}"
+      POSTGRES_USER: "${POSTGRES_USER:-user}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-password}"
+      PGPASSWD: "${POSTGRES_PASSWORD:-password}"
+      PGPASSWORD: "${POSTGRES_PASSWORD:-password}"
+{%- elif 'mysql' in cookiecutter.db_mode %}
+      MYSQL_HOST: "${MYSQL_HOST:-db}"
+      MYSQL_PORT: "${MYSQL_PORT:-3306}"
+      MYSQL_DATABASE: "${MYSQL_DATABASE:-db}"
+      MYSQL_USER: "${MYSQL_USER:-user}"
+      MYSQL_PASSWORD: "${MYSQL_PASSWORD:-password}"
+{%- endif %}
+      PLONE__USER_UID: "${PLONE__USER_UID:-1000}"
+{%- if cookiecutter.with_ftp %}
+      PLONE__FTP_USER: "${PLONE__FTP_USER:-ftp}"
+      PLONE__FTP_PASSWORD: "${PLONE__FTP_PASSWORD:-secret1324510}"
+      PLONE__FTP_PORT: "${PLONE__FTP_PORT:-{{cookiecutter.ftp_port_range_start|int -1 }}}"
+{%- if cookiecutter.with_ftp in ['ftp'] %}
+      FTP_USER_HOME: "${PLONE__FTP_ROOT:-/ftp}"
+      FTP_USER_NAME: "${PLONE__FTP_USER:-ftp}"
+      FTP_USER_PASS: "${PLONE__FTP_PASSWORD:-secret1324510}"
+      FTP_USER_UID: "${PLONE__USER_UID:-1000}"
+{%- endif %}
+{%- endif %}
+      MAILCATCHER_USER: "${MAILCATCHER_USER:-mailcatcher}"
+      MAILCATCHER_PASSWORD: "${MAILCATCHER_PASSWORD:-mailcatcher}"
+  {{cookiecutter.app_type}}: &{{cookiecutter.app_type}}
+    <<: [ *env ]
+    ipc: "service:{{cookiecutter.app_type}}"
+    tty: true
+    # latest image is only used in prod (without dev & test tools)
+    image: "${{'{'}}{{cookiecutter.app_type.upper()}}_IMAGE}:${{'{'}}{{cookiecutter.app_type.upper()}}_IMAGE_VERSION}-dev"
+    environment: &plone_env
+      <<: [ *env_vars ]
+      PROJECT_DIR: "${PROJECT_DIR:-/app/src/{{cookiecutter.plone_project_name}}/}"
+      PROJECT_PACKAGE: "${PROJECT_PACKAGE:-{{cookiecutter.plone_project_name}}}"
+      EXTRA_USER_DIRS: "{% if cookiecutter.with_ftp%}${PLONE__FTP_ROOT:-/ftp}{%endif%}"
+    depends_on:
+    - db
+{%- if cookiecutter.cache_system%}
+    - "{{cookiecutter.cache_system}}"
+{%-endif%}
+    volumes:
+{#- KEEP IN SYNC WITH -dev equivalent block, nginx, cron #}
+{%- macro plone_volumes() %}
+{%- if not cookiecutter.no_local_volumes %}
+    - ./sys/scripts:/app/sys/scripts
+{%- if not cookiecutter.remove_cron %}
+    - ./sys/etc/cron.d:/app/sys/etc/cron.d
+{%- endif %}
+    - ./sys/etc/logrotate.d:/app/sys/etc/logrotate.d
+{%- endif %}
+{%- endmacro %}
+{%- macro plone_assets() %}
+    - "${DATA_VOLUME:-./data}:/app/data"
+    - mediafiles:/app/public/media
+    - statics:/app/public/static
+    - privatefiles:/app/private
+    - docs:/app/outdocs
+{%- if cookiecutter.with_ftp %}
+    - "ftp-root:${PLONE__FTP_ROOT:-/ftp}"
+{%- endif %}
+{%- endmacro %}
+{{- plone_volumes() }}
+{{- plone_assets() }}
+{%- if cookiecutter.with_ftp %}
+  ftp: &ftp
+    <<: [ *env ]
+    image: {{ cookiecutter.with_ftp in ['ssh'] and 'corpusops/sshd' or 'corpusops/pureftpd' }}
+    environment: &ftp_env
+      <<: [ *env_vars ]
+      {% if cookiecutter.with_ftp in ['ftp'] %}
+      FTP_MAX_CONNECTIONS: 50
+      FTP_MAX_CLIENTS: 50{%endif%}
+{%- endif %}
+services:
+  log:
+    <<: [ *env ]
+    image: "{{cookiecutter.rsyslog_image}}"
+{%- if cookiecutter.with_ftp %}
+{%- if cookiecutter.with_ftp in ['ftp']%}
+# has only to be reachable from within the docker network (no passive mode !)
+  ftp-int:
+    <<: [ *ftp ]
+    environment:
+      <<: [ *ftp_env ]
+      PUBLICHOST: "${PLONE__FTP_INTERNAL_PUBLICHOST-}"
+      NO_PASSIVE_MODE: "1"
+    volumes:
+    - "ftp-root:${PLONE__FTP_ROOT:-/ftp}"
+    - ftp-pw:/etc/pure-ftpd/passwd
+    - ftp-ssl:/etc/ssl/private
+{%- if cookiecutter.with_ftp in ['ftp']%}
+  ftp:
+    <<: [ *ftp ]
+    environment:
+      <<: [ *ftp_env ]
+      FTP_PASSIVE_PORTS: "${PLONE__FTP_PORT_RANGE:-{{cookiecutter.ftp_port_range}}}"
+      PUBLICHOST: "${PLONE__FTP_PUBLICHOST-}"
+    ports:
+    - "${PLONE__FTP_LISTEN:-0.0.0.0}:${PLONE__FTP_PORT:-21}:21"
+    - "${PLONE__FTP_LISTEN:-0.0.0.0}:${PLONE__FTP_PORT_RANGE:-{{cookiecutter.ftp_port_range.replace(':', '-')}}}:${PLONE__FTP_PORT_RANGE:-{{cookiecutter.ftp_port_range.replace(':', '-')}}}"
+    volumes:
+    - "ftp-root:${PLONE__FTP_ROOT:-/ftp}"
+    - ftp-pw:/etc/pure-ftpd/passwd
+    - ftp-ssl:/etc/ssl/private
+{%- elif cookiecutter.with_ftp in ['ssh']%}
+  ftp:
+    <<: [ *ftp ]
+    environment:
+      <<: [ *ftp_env ]
+      SFTP_MODE: "${SFTP_MODE:-true}"
+      SFTP_CHROOT: "${SFTP_CHROOT:-true}"
+      SSH_USERS: "${PLONE__FTP_USER:-ftp}:${PLONE__USER_UID:-1000}::${PLONE__FTP_PASSWORD:-secret1324510}"
+    ports:
+    - "${PLONE__FTP_LISTEN:-0.0.0.0}:${PLONE__FTP_PORT:-{{cookiecutter.ftp_port_range_start|int -1}}}:22"
+    volumes:
+    - "ftp-root:${PLONE__SFTP_ROOT:-/home/ftp}"
+{%- endif %}
+{%- endif %}
+{%- endif %}
+  mailcatcher:
+    <<: [ *env ]
+    image: "{{cookiecutter.mailhog_image}}"
+    hostname: "mailcatcher"
+    volumes: ["mails:/mails"]
+{%- if cookiecutter.cache_system%}
+  {{cookiecutter.cache_system}}:
+    <<: [ *env ]
+    image: "{{cookiecutter.cache_image}}"
+    hostname: {{cookiecutter.cache_system}}
+{%- if cookiecutter.cache_system in ['redis'] %}
+    volumes:
+    - 'redis:/data'
+{%- endif %}
+{%- endif %}
+  db:
+    <<: [ *env ]
+    image: "{{cookiecutter["{0}_image".format(cookiecutter.db_mode)]}}"
+    volumes:
+{%- if "post" in cookiecutter.db_mode %}
+    - postgresql:/var/lib/postgresql/data
+{%- else %}
+    - data:/data
+{%- endif %}
+  backup:
+    <<: [ *env ]
+    image: "{{cookiecutter.dbsmartbackup_image}}"
+  nginx:
+    <<: [ *env ]
+    image: "{{cookiecutter.nginx_image}}"
+    depends_on:
+    - {{cookiecutter.app_type}}
+    volumes:
+{{- plone_assets() }}
+    - ./sys/etc/nginx/vhost.conf.template:/etc/nginx/conf.d/default.conf.template
+    - nginx-certs:/certs
+    - nginx-htpasswd:/etc/htpasswd
+  {{cookiecutter.app_type}}:
+    <<: [ *{{cookiecutter.app_type}} ]
+    ipc: shareable
+{%- if not cookiecutter.remove_cron %}
+  cron:
+    <<: [ *{{cookiecutter.app_type}} ]
+    environment:
+      <<: [ *plone_env ]
+      IMAGE_MODE: cron
+    depends_on:
+    - {{cookiecutter.app_type}}
+    volumes:
+{{- plone_volumes() }}
+{{- plone_assets() }}
+{%- endif%}
+volumes:
+  docs:
+{%- if 'post' in cookiecutter.db_mode %}
+  postgresql:
+{% else %}
+  data:
+{%- endif%}
+{%- if cookiecutter.cache_system in ['redis']%}
+  {{cookiecutter.cache_system}}:
+{%- endif%}
+  nginx-htpasswd:
+  nginx-certs:
+  mediafiles:
+  privatefiles:
+  statics:
+  mails:
+{%- if cookiecutter.with_ftp %}
+  ftp-root:
+{%- if cookiecutter.with_ftp in ['ftp'] %}
+  ftp-pw:
+  ftp-ssl:
+{%- endif %}
+{%- endif %}

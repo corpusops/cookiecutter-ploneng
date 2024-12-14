@@ -1,0 +1,21 @@
+version: '{{cookiecutter.compose_version}}'
+x-images:
+  env: &env {env_file: [.env, docker.env]}
+  {{cookiecutter.app_type}}: &{{cookiecutter.app_type}}
+    build: &build
+      context: "."
+      args: &args
+        BUILDKIT_INLINE_CACHE: "1"
+        ZEO_BASE_IMAGE: "${ZEO_BASE_IMAGE:-{{cookiecutter.zeo_base_image}}}"
+        BASE: "${PLONE_BASE_IMAGE:-{{cookiecutter.base_image}}}"
+        HELPERS: "${HELPERS_IMAGE:-{{cookiecutter.helpers_image}}}"
+        # BASE: "${{'{'}}{{cookiecutter.app_type.upper()}}}}_BASE_IMAGE:-{{cookiecutter.debian_image}}}"
+        PY_VER: "${PLONE_PY_VER:-{{cookiecutter.py_ver}}}"
+        WITH_VSCODE: "${WITH_VSCODE:-0}"
+        VSCODE_VERSION: "${VSCODE_VERSION-}"
+services:
+{%- if not cookiecutter.remove_cron %}
+  db: {<<: [ *{{cookiecutter.app_type}} ], build: {<<: [ *build ], dockerfile: Dockerfile.zeo}}
+  cron: {<<: [ *{{cookiecutter.app_type}} ]}
+{%-endif%}
+  {{cookiecutter.app_type}}: {<<: [ *{{cookiecutter.app_type}} ]}

@@ -1,0 +1,9 @@
+version: '{{cookiecutter.compose_version}}'
+services:
+  docs:
+    env_file: [../.env, ../docker.env]
+    image: "${{'{'}}{{cookiecutter.app_type.upper()}}_IMAGE}:${{'{'}}{{cookiecutter.app_type.upper()}}_IMAGE_VERSION}-docsbuilder"
+    volumes:
+    - ../docs:/app/docs
+    - ../local:/app/local
+    - ../src:/app/src

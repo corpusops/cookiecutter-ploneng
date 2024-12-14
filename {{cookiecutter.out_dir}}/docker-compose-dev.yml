@@ -1,0 +1,89 @@
+version: '{{cookiecutter.compose_version}}'
+{% set nginxc    = (not cookiecutter.nginx_in_dev) and '#' or '' %}
+{% set nginxnc   = (cookiecutter.nginx_in_dev) and '#' or '' %}
+{% set nginxsslc = (not cookiecutter.ssl_in_dev) and '#' or '' %}
+x-images:
+  bypass: &bypass
+    command: 'sh -c "while true;do echo notstarted;sleep 65000;done"'
+    entrypoint: 'sh -c "while true;do echo notstarted;sleep 65000;done"'
+    restart: "no"
+  {{cookiecutter.app_type}}: &{{cookiecutter.app_type}}
+    environment: &{{cookiecutter.app_type}}_env
+       NO_MIGRATE: "${NO_MIGRATE-1}"
+       NO_COLLECT_STATIC: "${NO_COLLECT_STATIC-1}"
+       NO_STATICS: "${NO_STATICS-1}"
+    volumes: &{{cookiecutter.app_type}}_volumes
+    - ./local/localdir:/local
+    - ./sys:/app/sys
+{%- if cookiecutter.no_local_volumes %}
+{%- endif%}
+{%-  if cookiecutter.use_submodule_for_deploy_code %}
+    - ./{{cookiecutter.deploy_project_dir}}/sys/sudoer:/etc/sudoers.d/${APP_TYPE:-{{cookiecutter.app_type}}}
+    - ./{{cookiecutter.deploy_project_dir}}/sys/init.sh:/app/init/init.sh
+    - ./{{cookiecutter.deploy_project_dir}}:/app/{{cookiecutter.deploy_project_dir}}
+{%- else %}
+    - ./sys/sudoer:/etc/sudoers.d/$APP_TYPE
+    - ./sys/init.sh:/app/init/init.sh
+{%- endif%}
+{%- if not cookiecutter.no_lib %}
+    - ./lib:/app/lib
+{%- endif%}
+    - ./local:/app/local
+{%- if cookiecutter.with_bundled_front %}
+    - ./frontend:/app/frontend
+{%- endif %}
+    - ./src:/app/src
+{%- macro plone_assets() %}
+    - ./docs:/app/docs
+{%- if not cookiecutter.no_private %}
+    - ./local/private:/app/private
+{%- endif%}
+    - ./local/public:/app/public
+    - ./local/media:/app/public/media
+    - ./local/static:/app/public/static
+{%- endmacro %}
+{{- plone_assets() }}
+    - ./tox.ini:/app/tox.ini
+    - ./.tox:/app/.tox
+    - ./requirements:/app/requirements
+services:
+  # uncomment to activate in dev
+  nginx:
+    {{nginxnc}}<<: [ *bypass ]
+    ports:
+    - "${PLONE__HTTP_PORT:-80}:80"
+    {{nginxsslc}}- "${PLONE__HTTPS_PORT:-443}:443"
+    environment: {NO_SSL: "0"}
+    volumes:
+    {{plone_assets().strip().replace('\n', '\n{0}'.format(nginxc and nginxc or ''))}}
+  {{cookiecutter.app_type}}:
+    <<: [ *{{cookiecutter.app_type}} ]
+    environment:
+      <<: [ *{{cookiecutter.app_type}}_env ]
+      IMAGE_MODE: fg
+    ports:
+    - "${PLONE__API_LISTEN:-0.0.0.0}:${PLONE__API_PORT:-8000}:8000"
+    - "${PLONE__VSCODE_LISTEN:-0.0.0.0}:${PLONE__VSCODE_PORT:-5678}:5678"
+  cron:
+    <<: [ *{{cookiecutter.app_type}} ]
+    environment:
+      <<: [ *{{cookiecutter.app_type}}_env ]
+  db:
+    ports:
+    - "${PLONE__DB_OUT_LISTEN:-0.0.0.0}:${PLONE__DB_OUT_PORT:-{{cookiecutter.db_out_port}}}:8100"
+    volumes:
+    - ./sys:/app/sys
+{%- if cookiecutter.no_local_volumes %}
+{%- endif%}
+{%-  if cookiecutter.use_submodule_for_deploy_code %}
+    - ./{{cookiecutter.deploy_project_dir}}/sys/zeo-init.sh:/app/init/zeo-init.sh
+    - ./{{cookiecutter.deploy_project_dir}}:/app/{{cookiecutter.deploy_project_dir}}
+{%- else %}
+    - ./sys/sudoer:/etc/sudoers.d/$APP_TYPE
+    - ./sys/zeo-init.sh:/app/init/zeo-init.sh
+{%- endif%}
+  mailcatcher:
+    ports:
+    - "${PLONE__MAILCATCHER_LISTEN:-0.0.0.0}:${PLONE__MAILCATCHER_PORT:-8025}:8025"
+  backup: { <<: [ *bypass ] }
+  log: { <<: [ *bypass ] }

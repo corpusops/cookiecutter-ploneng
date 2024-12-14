@@ -1,0 +1,15 @@
+# development
+coverage
+eradicate
+isort>=5.0.0
+pylama
+pycodestyle
+tblib
+# TOX >=4 is incompatible with tox-direct
+tox<4
+tox-direct
+{% if cookiecutter.with_black %}black{% endif %}
+xlrd
+# https://github.com/ipython/ipython/issues/12740
+jedi<0.18.0
+ipython
