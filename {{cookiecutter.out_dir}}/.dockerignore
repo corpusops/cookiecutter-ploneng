@@ -1,5 +1,10 @@
+/bin
 docker-compose*
+/Dockerfile
 /.gitlab-ci.yml
+/include
+/instance
+/instance.yaml
 /local/code
 /local/local*
 /local/media
@@ -10,6 +15,8 @@ docker-compose*
 /local/regen.sh
 /local/static
 /local/tox*
+/Makefile
 /media
 /node_modules
 /.tox
+/var

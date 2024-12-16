@@ -26,21 +26,20 @@ x-images:
     - ./sys/init.sh:/app/init/init.sh
 {%- endif%}
 {%- if not cookiecutter.no_lib %}
-    - ./lib:/app/lib
+    - ./src.ext:/app/src.ext
 {%- endif%}
     - ./local:/app/local
 {%- if cookiecutter.with_bundled_front %}
     - ./frontend:/app/frontend
 {%- endif %}
+    - ./sources:/app/sources
+    - ./sources/devmode:/app/sources/devmode
     - ./src:/app/src
 {%- macro plone_assets() %}
+    - "${DATA_VOLUME:-./data}:/app/data"
     - ./docs:/app/docs
 {%- if not cookiecutter.no_private %}
-    - ./local/private:/app/private
 {%- endif%}
-    - ./local/public:/app/public
-    - ./local/media:/app/public/media
-    - ./local/static:/app/public/static
 {%- endmacro %}
 {{- plone_assets() }}
     - ./tox.ini:/app/tox.ini
@@ -62,7 +61,7 @@ services:
       <<: [ *{{cookiecutter.app_type}}_env ]
       IMAGE_MODE: fg
     ports:
-    - "${PLONE__API_LISTEN:-0.0.0.0}:${PLONE__API_PORT:-8000}:8000"
+    - "${PLONE__API_LISTEN:-0.0.0.0}:${PLONE__API_PORT:-8080}:8080"
     - "${PLONE__VSCODE_LISTEN:-0.0.0.0}:${PLONE__VSCODE_PORT:-5678}:5678"
   cron:
     <<: [ *{{cookiecutter.app_type}} ]

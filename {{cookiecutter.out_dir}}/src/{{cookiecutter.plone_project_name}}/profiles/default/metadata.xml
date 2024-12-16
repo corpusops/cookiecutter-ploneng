@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<metadata>
+  <version>1000</version>
+  <dependencies>
+    <dependency>profile-Products.CMFPlacefulWorkflow:CMFPlacefulWorkflow</dependency>
+    <dependency>profile-plone.restapi:default</dependency>
+{%- if cookiecutter.with_eea %}
+    <dependency>profile-eea.facetednavigation:default</dependency>
+{%- endif %}
+  </dependencies>
+</metadata>

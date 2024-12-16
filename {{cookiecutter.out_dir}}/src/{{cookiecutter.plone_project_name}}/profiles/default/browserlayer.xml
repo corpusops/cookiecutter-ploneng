@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<layers>
+  <layer
+      name="{{cookiecutter.plone_project_name}}"
+      interface="{{cookiecutter.plone_project_name}}.interfaces.I{{cookiecutter.plone_project_name.capitalize()}}Layer"
+      />
+</layers>

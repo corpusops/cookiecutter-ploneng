@@ -80,6 +80,13 @@ variables: &variables
   LATEST_DOCKER_IMAGE: "${DOCKER_REGISTRY}/${DOCKER_IMAGE}:latest"
   REF_DOCKER_IMAGE: "${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${CI_COMMIT_REF_NAME}"
   CUR_DOCKER_IMAGE: "${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${CI_PIPELINE_IID}"
+  #
+  ZEO_LATEST_CI_DOCKER_IMAGE: "${DOCKER_REGISTRY}/${DOCKER_IMAGE}:ci-zeo-latest"
+  ZEO_REF_CI_DOCKER_IMAGE: "${DOCKER_REGISTRY}/${DOCKER_IMAGE}:ci-zeo-${CI_COMMIT_REF_NAME}"
+  ZEO_CUR_CI_DOCKER_IMAGE: "${DOCKER_REGISTRY}/${DOCKER_IMAGE}:ci-zeo-${CI_PIPELINE_IID}"
+  ZEO_LATEST_DOCKER_IMAGE: "${DOCKER_REGISTRY}/${DOCKER_IMAGE}:zeo-latest"
+  ZEO_REF_DOCKER_IMAGE: "${DOCKER_REGISTRY}/${DOCKER_IMAGE}:zeo-${CI_COMMIT_REF_NAME}"
+  ZEO_CUR_DOCKER_IMAGE: "${DOCKER_REGISTRY}/${DOCKER_IMAGE}:zeo-${CI_PIPELINE_IID}"
   # default to $TAGGUABLE_IMAGE_BRANCH
   IMAGE_FLAVORS: "((-?(latest|dev))|((docs|js)builder))?(-dev)?"
   EXTRA_DOCKER_TAGS: "^((docs|js)builder)$"
@@ -170,11 +177,15 @@ before_script: &top_before_script
     fi
    }
    adddockertag() {
+    dockerregistertag ${1//:/:zeo}     $(eval echo ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${2//:/:zeo})
+    dockerregistertag ${1//:/:zeo}-dev $(eval echo ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${2//:/:zeo}-dev)
     dockerregistertag ${1}     $(eval echo ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${2})
     dockerregistertag ${1}-dev $(eval echo ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${2}-dev)
    }
    bx_adddockertag() {
     if [ "$1" != "$(eval echo ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${2})" ];then
+      retry_cmd vv docker buildx imagetools create ${1//:/:zeo}     -t $(eval echo ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:zeo-${2})
+      retry_cmd vv docker buildx imagetools create ${1//:/:zeo}-dev -t $(eval echo ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:zeo-${2})-dev
       retry_cmd vv docker buildx imagetools create ${1}     -t $(eval echo ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${2})
       retry_cmd vv docker buildx imagetools create ${1}-dev -t $(eval echo ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${2})-dev
     else
@@ -332,9 +343,12 @@ cleanup_all: &cleanup_all
     D_COMPOSE: "docker-compose"
     COMPOSE_HTTP_TIMEOUT:  "3600"
     MULTISTAGE_TARGET: ""
-    BUILT_DOCKER_IMAGE: $CUR_DOCKER_IMAGE
-    BUILT_LATEST_DOCKER_IMAGE: $LATEST_DOCKER_IMAGE
-    BUILT_REF_DOCKER_IMAGE: $REF_DOCKER_IMAGE
+    BUILT_DOCKER_IMAGE:            $CUR_DOCKER_IMAGE
+    BUILT_LATEST_DOCKER_IMAGE:     $LATEST_DOCKER_IMAGE
+    BUILT_REF_DOCKER_IMAGE:        $REF_DOCKER_IMAGE
+    ZEO_BUILT_DOCKER_IMAGE:        $ZEO_CUR_DOCKER_IMAGE
+    ZEO_BUILT_LATEST_DOCKER_IMAGE: $ZEO_LATEST_DOCKER_IMAGE
+    ZEO_BUILT_REF_DOCKER_IMAGE:    $ZEO_REF_DOCKER_IMAGE
   script:
   - &build_dockercompose |-
     get_img() { jq -r .target.$service.tags[0]; }
@@ -344,7 +358,9 @@ cleanup_all: &cleanup_all
       && cachetag="$(echo ${BUILT_REF_DOCKER_IMAGE}-cache-${cachesuf})" \
       && vv dcompose_bx_ \
           $( if [ "x${MULTISTAGE_TARGET}" != "x" ];then echo '--set '"*.target=${MULTISTAGE_TARGET}";fi; ) \
-          $( if [ "x${DOCKER_BASE_IMAGE-}" != "x" ];then echo '--set '"*.args.BASE=$(eval echo ${DOCKER_BASE_IMAGE})";fi; ) \
+          $( if [ "x${BUILD_BASE_IMAGE}" != "x" ];then echo '--set '"*.args.BASE=$(eval echo ${BUILD_BASE_IMAGE})";fi; ) \
+          $( if [ "x${PROD_BASE_IMAGE}" != "x" ];then echo '--set '"*.args.BASE=$(eval echo ${PROD_BASE_IMAGE})";fi; ) \
+          $( if [ "x${ZEO_BASE_IMAGE}" != "x" ];then echo '--set '"*.args.BASE=$(eval echo ${ZEO_BASE_IMAGE})";fi; ) \
           --set "*.cache-to=type=local,dest=${docker_cache}.new,mode=max" \
           --set "*.cache-from=type=local,src=${docker_cache}" \
           --set "*.cache-to=type=registry,ref=${cachetag},mode=max" \
@@ -357,19 +373,28 @@ cleanup_all: &cleanup_all
       && vv bx_dc ${service} $@; ); }
     vv dcompose_bx_build {{cookiecutter.app_type}} dev  ${COMPOSE_DEV_CONFIGS}
     vv dcompose_bx_build {{cookiecutter.app_type}} prod ${COMPOSE_PROD_CONFIGS}
+    vv dcompose_bx_build zeo dev  ${COMPOSE_DEV_CONFIGS}
+    vv dcompose_bx_build zeo prod ${COMPOSE_PROD_CONFIGS}
     # tag & record images for next step push
     dev_tags="";prod_tags="";
+    zeo_dev_tags="";zeo_prod_tags="";
     if ( echo ${CI_COMMIT_REF_NAME} | grep -E -q "$TAGGUABLE_IMAGE_BRANCH" );then
       dev_tags="$dev_tags   $(echo ${BUILT_REF_DOCKER_IMAGE}-dev)"
       prod_tags="$prod_tags $(echo ${BUILT_REF_DOCKER_IMAGE})"
+      zeo_dev_tags="$dev_tags   $(echo ${ZEO_BUILT_REF_DOCKER_IMAGE}-dev)"
+      zeo_prod_tags="$prod_tags $(echo ${ZEO_BUILT_REF_DOCKER_IMAGE})"
     fi
     if [ "x${CI_COMMIT_REF_NAME}" = "x${MAIN_BRANCH}" ];then
       dev_tags="$dev_tags   $(echo ${BUILT_LATEST_DOCKER_IMAGE}-dev)"
       prod_tags="$prod_tags $(echo ${BUILT_LATEST_DOCKER_IMAGE})"
+      zeo_dev_tags="$zeo_dev_tags   $(echo ${ZEO_BUILT_LATEST_DOCKER_IMAGE}-dev)"
+      zeo_prod_tags="$zeo_prod_tags $(echo ${ZEO_BUILT_LATEST_DOCKER_IMAGE})"
     fi
     if [ "x${dev_tags}" != "x" ];then  vv retry_cmd dcompose_bx_build {{cookiecutter.app_type}} dev  ${COMPOSE_DEV_CONFIGS}  $(bx_bake_tags $dev_tags);fi
     if [ "x${prod_tags}" != "x" ];then vv retry_cmd dcompose_bx_build {{cookiecutter.app_type}} prod ${COMPOSE_PROD_CONFIGS} $(bx_bake_tags $prod_tags);fi
-    for s in {{cookiecutter.app_type}};do for c in dev prod;do swap_cache_folder ${DOCKER_CACHE}/$c/$s;done;done
+    if [ "x${zeo_dev_tags}" != "x" ];then  vv retry_cmd dcompose_bx_build zeo dev  ${COMPOSE_DEV_CONFIGS}  $(bx_bake_tags $zeo_dev_tags);fi
+    if [ "x${zeo_prod_tags}" != "x" ];then vv retry_cmd dcompose_bx_build zeo prod ${COMPOSE_PROD_CONFIGS} $(bx_bake_tags $zeo_prod_tags);fi
+    for s in {{cookiecutter.app_type}} zeo;do for c in dev prod;do swap_cache_folder ${DOCKER_CACHE}/$c/$s;done;done
 
 {{docscomment and frontcomment}}.build_artifacts: &build_artifacts
 {{docscomment and frontcomment}}  <<: [ *ci_runner ]
@@ -412,9 +437,12 @@ build_ci_images: &build_ci_images
   variables: &build_ci_images_vars
     <<: [ *compose_build_vars ]
     MULTISTAGE_TARGET: ""
-    BUILT_DOCKER_IMAGE: $CUR_CI_DOCKER_IMAGE
-    BUILT_LATEST_DOCKER_IMAGE: $LATEST_CI_DOCKER_IMAGE
-    BUILT_REF_DOCKER_IMAGE: $REF_CI_DOCKER_IMAGE
+    BUILT_DOCKER_IMAGE:            $CUR_CI_DOCKER_IMAGE
+    BUILT_LATEST_DOCKER_IMAGE:     $LATEST_CI_DOCKER_IMAGE
+    BUILT_REF_DOCKER_IMAGE:        $REF_CI_DOCKER_IMAGE
+    ZEO_BUILT_DOCKER_IMAGE:        $ZEO_CUR_CI_DOCKER_IMAGE
+    ZEO_BUILT_LATEST_DOCKER_IMAGE: $ZEO_LATEST_CI_DOCKER_IMAGE
+    ZEO_BUILT_REF_DOCKER_IMAGE:    $ZEO_REF_CI_DOCKER_IMAGE
   script: [ *build_dockercompose ]
   rules:
   - *skip_not_a_push_trigger
@@ -502,6 +530,15 @@ force_build_ci_images: &force_build_ci_images
       {{cookiecutter.cache_system.upper()}}_URL: "{{cookiecutter.cache_system}}"
 {%- endif%}
 {%- endif%}
+      PLONE_PROFILES: "{{cookiecutter.plone_project_name}}:default"
+      PLONE_SITE: "{{cookiecutter.plone_site}}"
+      PLONE_TYPE: "{{cookiecutter.plone_type}}"
+      CORS_ALLOW_ORIGIN: "*"
+      CORS_ALLOW_METHODS: "DELETE,GET,OPTIONS,PATCH,POST,PUT"
+      CORS_ALLOW_CREDENTIALS: "CORS_ALLOW_CREDENTIALS:-true"
+      CORS_EXPOSE_HEADERS: "Content-Length,X-My-Header"
+      CORS_ALLOW_HEADERS: "Accept,Authorization,Content-Type,X-Custom-Header,Lock-Tokenx}"
+      CORS_MAX_AGE: "CORS_MAX_AGE:-3600"
       DB_MODE: "{{cookiecutter.db_mode}}"
       NGINX_SERVERNAME: "{{cookiecutter.name}}.local"
       NGINX_SERVER_ALIASES: "www.{{cookiecutter.name}}.local www2.{{cookiecutter.name}}.local"
@@ -545,7 +582,7 @@ force_build_ci_images: &force_build_ci_images
   #  when: never
   services:
   - alias: db
-    name: "{{cookiecutter[cookiecutter.db_mode+"_image"]}}"
+    name: "{{ 'zeo' not in cookiecutter[cookiecutter.db_mode+"_image"] and cookiecutter[cookiecutter.db_mode+"_image"] or '$ZEO_LATEST_CI_DOCKER_IMAGE' }}"
     variables: &test_services_vars {<<: [ *test_vars ]}
 {%- if cookiecutter.cache_system %}
   - alias: "{{cookiecutter.cache_system}}"
@@ -757,6 +794,7 @@ manual_deploy_{{i}}: &manual_deploy_{{i}}
   - &promote_script |-
     set -e
     t="$(eval echo "${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${FROM_PROMOTE}")"
+    zt="$(eval echo "${DOCKER_REGISTRY}/${DOCKER_IMAGE}:zeo-${FROM_PROMOTE}")"
     # for flav in "" "-dev";do vv docker pull ${t}${flav};done
     for i in $(uniquify $(eval echo ${TO_PROMOTE}));do
        bx_adddockertag ${t} ${i}

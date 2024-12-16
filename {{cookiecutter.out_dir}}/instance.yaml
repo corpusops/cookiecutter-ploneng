@@ -1,0 +1,9 @@
+default_context:
+    initial_user_name: 'admin'
+    initial_user_password: 'admin'
+
+    load_zcml:
+        package_includes: ['{{ cookiecutter.plone_project_name }}']
+
+    db_storage: direct
+

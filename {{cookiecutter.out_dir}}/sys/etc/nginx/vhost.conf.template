@@ -227,10 +227,6 @@ server {
     }
     {{'{{'}} end }}
 
-    location ~ ^/(admin/) {
-        {{'{{'}} template "apipass" . }}
-    }
-
     location ~ ^/(api/) {
         {{'{{'}} template "apipass" . }}
         # auth_basic off;

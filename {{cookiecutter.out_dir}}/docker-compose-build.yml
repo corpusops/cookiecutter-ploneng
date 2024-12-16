@@ -5,9 +5,12 @@ x-images:
     build: &build
       context: "."
       args: &args
+        HOST_USER_UID: "${HOST_USER_UID:-1000}"
         BUILDKIT_INLINE_CACHE: "1"
         ZEO_BASE_IMAGE: "${ZEO_BASE_IMAGE:-{{cookiecutter.zeo_base_image}}}"
-        BASE: "${PLONE_BASE_IMAGE:-{{cookiecutter.base_image}}}"
+        BUILD_BASE_IMAGE: "${PLONE_BASE_IMAGE:-{{cookiecutter.base_builder_image}}}"
+        PROD_BASE_IMAGE: "${PLONE_BASE_IMAGE:-{{cookiecutter.base_prod_image}}}"
+        PLONE_VERSION: "${PLONE_VERSION:-{{cookiecutter.plone_ver}}}"
         HELPERS: "${HELPERS_IMAGE:-{{cookiecutter.helpers_image}}}"
         # BASE: "${{'{'}}{{cookiecutter.app_type.upper()}}}}_BASE_IMAGE:-{{cookiecutter.debian_image}}}"
         PY_VER: "${PLONE_PY_VER:-{{cookiecutter.py_ver}}}"

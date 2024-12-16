@@ -4,6 +4,16 @@ x-images:
   env: &env
     env_file: [.env, docker.env]
     environment: &env_vars
+      PLONE_PROFILES: "${PLONE_PROFILES:-{{cookiecutter.plone_project_name}}:default}"
+      PLONE_SITE: "${PLONE_SITE:-{{cookiecutter.plone_site}}}"
+      PLONE_TYPE: "${PLONE_TYPE:-{{cookiecutter.plone_type}}}"
+      HOST_USER_UID: "${HOST_USER_UID:-1000}"
+      CORS_ALLOW_ORIGIN: "${CORS_ALLOW_ORIGIN:-*}"
+      CORS_ALLOW_METHODS: "${CORS_ALLOW_METHODS:-DELETE,GET,OPTIONS,PATCH,POST,PUT}"
+      CORS_ALLOW_CREDENTIALS: "${CORS_ALLOW_CREDENTIALS:-true}"
+      CORS_EXPOSE_HEADERS: "${CORS_EXPOSE_HEADERS:-Content-Length,X-My-Header}"
+      CORS_ALLOW_HEADERS: "${CORS_ALLOW_HEADERS:-Accept,Authorization,Content-Type,X-Custom-Header,Lock-Token}"
+      CORS_MAX_AGE: "${CORS_MAX_AGE:-3600}"
 {%- if cookiecutter.cache_system%}
 {%-  if cookiecutter.cache_system == 'redis' %}
       REDIS_URL: "${REDIS_URL:-redis://redis:6379/1}"
@@ -73,9 +83,6 @@ x-images:
 {%- endmacro %}
 {%- macro plone_assets() %}
     - "${DATA_VOLUME:-./data}:/app/data"
-    - mediafiles:/app/public/media
-    - statics:/app/public/static
-    - privatefiles:/app/private
     - docs:/app/outdocs
 {%- if cookiecutter.with_ftp %}
     - "ftp-root:${PLONE__FTP_ROOT:-/ftp}"
@@ -160,12 +167,23 @@ services:
     volumes:
 {%- if "post" in cookiecutter.db_mode %}
     - postgresql:/var/lib/postgresql/data
-{%- else %}
+{%- elif "zeo" in cookiecutter.db_mode %}
     - data:/data
 {%- endif %}
   backup:
+{% if 'zeo' not in cookiecutter.db_mode %}
     <<: [ *env ]
     image: "{{cookiecutter.dbsmartbackup_image}}"
+{%- else %}
+    <<: [ *{{cookiecutter.app_type}} ]
+    environment:
+      <<: [ *plone_env ]
+      IMAGE_MODE: backup
+    volumes:
+{{- plone_assets() }}
+    - /var/run:/host_run
+    depends_on: [ {{cookiecutter.app_type}}, db ]
+{%- endif %}
   nginx:
     <<: [ *env ]
     image: "{{cookiecutter.nginx_image}}"
@@ -203,9 +221,6 @@ volumes:
 {%- endif%}
   nginx-htpasswd:
   nginx-certs:
-  mediafiles:
-  privatefiles:
-  statics:
   mails:
 {%- if cookiecutter.with_ftp %}
   ftp-root:

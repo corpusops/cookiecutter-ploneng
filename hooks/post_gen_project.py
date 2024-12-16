@@ -51,6 +51,7 @@ SYMLINKS_FILES = {
     "docs/Dockerfile": "../{{cookiecutter.deploy_project_dir}}/docs/Dockerfile",  #noqa
     "Dockerfile-docs": "docs/Dockerfile",  #noqa
     # "tox.ini":    "{{cookiecutter.deploy_project_dir}}/tox.ini",  #noqa
+    "buildout.cfg": "{{cookiecutter.deploy_project_dir}}/buildout.cfg",  #noqa
     "Dockerfile.zeo": "{{cookiecutter.deploy_project_dir}}/Dockerfile.zeo",  #noqa
     "Dockerfile": "{{cookiecutter.deploy_project_dir}}/Dockerfile",  #noqa
 }
@@ -121,17 +122,17 @@ rm -rf lib
 {% endif %}
 if [ -e $dockerfile ] && [ ! -h $dockerfile ];then
 $sed -i -re \
-	"s/PY_VER=.*/PY_VER={{cookiecutter.py_ver}}/g" \
-	$dockerfile
+    "s/PY_VER=.*/PY_VER={{cookiecutter.py_ver}}/g" \
+    $dockerfile
 
 $sed -i -re \
-	"s/project/{{cookiecutter.plone_project_name}}/g" \
-	$dockerfile
+    "s/project/{{cookiecutter.plone_project_name}}/g" \
+    $dockerfile
 fi
 if ( find sys/*.sh 2>/dev/null );then
 $sed -i -re \
-	"s/project/{{cookiecutter.plone_project_name}}/g" \
-	sys/*.sh
+    "s/project/{{cookiecutter.plone_project_name}}/g" \
+    sys/*.sh
 fi
 set +x
 {% if not cookiecutter.use_submodule_for_deploy_code %}
