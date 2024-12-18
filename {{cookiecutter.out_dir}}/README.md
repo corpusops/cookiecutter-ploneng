@@ -150,18 +150,7 @@ You will need to add the network alias and maybe stop the plone worker
 ```sh
 ./control.sh stop {{cookiecutter.app_type}}
 services_ports=1 ./control.sh usershell
-./manage.py runserserver 0.0.0.0:8000
-```
-
-## Calling Django manage commands
-
-```sh
-./control.sh manage [options]
-# For instance:
-# ./control.sh manage migrate
-# ./control.sh manage shell
-# ./control.sh manage createsuperuser
-# ...
+sudo /init.sh do_fg
 ```
 
 **⚠️ Remember ⚠️** to use `./control.sh up` to start the stack before.
@@ -184,14 +173,6 @@ user to use files in your working directory
 ```sh
 ./control.sh open_perms_valve
 ```
-
-## Refresh Pipenv.lock
-
-- Use
-
-    ```
-    ./control.sh usershell sh -ec "cd requirements && pipenv lock"
-    ```
 
 ## Docker volumes
 
@@ -253,137 +234,8 @@ Once you have build once your image, you have two options to reuse your image as
         - On project python interpreter settings page, set:
             - Path Mapping: Add with browsing your local:`src` , remote: `/app/src` <br/>
               (you should then see `<Project root>/src→/app/src`)
-    - on language/frameworks → plone
-        - enable plone support
-        - set project root to `src` folder
-        - set manage script to `manage.py`
-        - browse to your `dev.py` settings file
-    - Add a debug configuration
-        - host: `0.0.0.0`
+    - **TODO**: how to integrate with a project
     - be sure that your firewall settings allow connection from the containers to your host ! See https://youtrack.jetbrains.com/issue/PY-21325
-
-### fixes
-- If there are errors when running debug sessions eg:
-
-    ```
-    plone_1          | ModuleNotFoundError: No module named '_pydevd_bundle_ext'
-    ```
-
-    - stop your stack
-    - stop pycharm
-    - docker rmi all pycharm images (`docker images -a |grep -i pycharm`)
-    - docker volume rm all pycharm volumes (`docker volume ls |grep -i pycharm`)
-    - restart your stack (`./control.sh up`)
-    - restart pycharm
-    - edit your debug session and add/modify this envvar: `PYDEVD_USE_CYTHON=NO`
-    - start a debug session
-    - `docker exec -it <THEPYCHARCONTAINERID> bash` (`docker ps`)
-
-        ```bash
-        . /app/venv/bin/activate
-        apt update && apt install $(cat /app/apt.txt)
-        cd /opt/.pycharm_helpers/pydev
-        rm -rf build
-        python setup_cython.py build_ext --inplace
-        ```
-    - terminate the debug session in pycharm
-    - edit your debug session and add/modify this envvar: `PYDEVD_USE_CYTHON=YES`
-    - Congrats, your debug session env should be repaired
-
-
-### Using VSCode
-
-#### Get the completion and the code resolving for bundled dependencies wich are inside the container
-- Whenever you rebuild the image, you need to refresh the files for your IDE to complete bundle dependencies
-
-    ```sh
-    ./control.sh get_container_code
-    ```
-#### IDE settings
-
-- Add to your .env and re-run ``./control.sh build {{cookiecutter.app_type}}``
-
-```sh
-WITH VISUALCODE=1
-```
-
-```python
-import pydevd_pycharm;pydevd_pycharm.settrace('host.docker.internal', port=12345, stdoutToServer=True, stderrToServer=True)
-```
-- if ``host.docker.internal`` does not work for you, you can replace it by the local IP of your machine.
-- Remember this rules to insert your breakpoint:  If the file reside on your host, you can directly insert it, but on the other side, you will need to run a usershell session and debug from there.<br/>
-  Eg: if  you want to put a pdb in ``../venv/*/*/*/foo/__init__.py``
-    - <strong>DO NOT DO IT in ``local/app/venv/*/*/*/foo/__init__.py`` </strong>
-    - do:
-
-- You must launch VSCode using ``./control.sh vscode`` as vscode needs to have the ``PYTHONPATH`` variable preset to make linters work
-
-    ```sh
-    ./control.sh vscode
-    ```
-    - In other words, this add ``local/**/site-packages`` to vscode sys.path.
-
-
-Additionnaly, adding this to ``.vscode/settings.json`` would help to give you a smooth editing experience
-
-  ```json
-  {
-    "files.watcherExclude": {
-        "**/.git/objects/**": true,
-        "**/.git/subtree-cache/**": true,
-        "**/node_modules/*/**": true,
-        "**/local/*/**": true,
-        "**/local/app/venv/lib/**/site-packages/**": false
-
-      }
-  }
-  ```
-
-#### Debugging with VSCode
-- [vendor documentation link](https://app.visualstudio.com/docs/python/debugging#_remote-debugging)
-- The VSCode process will connect to your running docker container, using a network tcp connection, eg on port ``5678``.
-- ``5678`` can be changed but of course adapt the commands, this port must be reachable from within the container and in the ``docker-compose-dev.yml`` file.
-- Ensure you added ``WITH_VSCODE`` in your ``.env`` and that ``VSCODE_VERSION`` is tied to your VSCODE installation and start from a fresh build if it was not (pip will mess to update it correctly, sorry).
-- Wherever you have the need to break, insert in your code the following snippet after imports (and certainly before wherever you want your import):
-
-    ```python
-    import ptvsd;ptvsd.enable_attach(address=('0.0.0.0', 5678), redirect_output=True);ptvsd.wait_for_attach()
-    ```
-- Remember this rules to insert your breakpoint:  If the file reside on your host, you can directly insert it, but on the other side, you will need to run a usershell session and debug from there.<br/>
-  Eg: if  you want to put a pdb in ``venv/*/*/*/foo/__init__.py``
-    - <strong>DO NOT DO IT in ``local/app/venv/*/*/*/foo/__init__.py`` </strong>
-    - do:
-
-        ```sh
-        ./control.sh down {{cookiecutter.app_type}}
-        services_ports=1 ./control.sh usershell
-        apt install -y vim
-        vim ../venv/*/*/*/foo/__init__.py
-        # insert: import ptvsd;ptvsd.enable_attach(address=('0.0.0.0', 5678), redirect_output=True);ptvsd.wait_for_attach()
-        ./manage.py runserver 0.0.0.0:8000
-        ```
-- toggle a breakpoint on the left side of your text editor on VSCode.
-- Switch to Debug View in VS Code, select the Python: Attach configuration, and select the settings (gear) icon to open launch.json to that configuration.<br/>
-  Duplicate the remote attach part and edit it as the following
-
-  ```json
-  {
-    "name": "Python Docker Attach",
-    "type": "python",
-    "request": "attach",
-    "pathMappings": [
-      {
-        "localRoot": "${workspaceFolder}",
-        "remoteRoot": "/app"
-      }
-    ],
-    "port": 5678,
-    "host": "localhost"
-  }
-  ```
-- With VSCode and your configured debugging session, attach to the session and it should work
-
-
 
 ## Doc for deployment on environments
 - [See here](./docs/README.md)
@@ -406,29 +258,8 @@ docker-compose -f docker-compose.yml -f docker-compose-dev.yml up -d db
 docker-compose -f docker-compose.yml -f docker-compose-dev.yml up {{cookiecutter.app_type}}
 ```
 
-## Django settings managment
-- We embrace many concepts to manage plone settings
-    - 12Factors: we try to make system environment the primary sources of settings
-    - For hosted environments, we use ByEnv pythonic settings that extends prod and
-      leverage complexity of combining settings by allowing to write logic to factorize the needed glue
-- The layout and variable precedence is as-follow:
-    - ``settings.base``
-    - ``environ (PLONE__* variables)``: every environment var that has that prefix will be exposed
-      as a plone setting (without the prefix).<br/>
-      For example ``PLONE__SECRET_KEY`` ➡️ ``SECRET_KEY``
-    - ``settings.base.{dev,test,prod}``
-    - ``settings.base.instances{dev,qa,staging,prod,...}``
-- So where do you need to put your settings ?
-    - **Generic env values**:
-        - The default form needs to be, even with a null value (``[]``, ``0``, ``None``, ``{}``) in ``settings/base.py``.
-        - If you need a specific value for ``dev envs (localhost)`` or ``test (ci)``, you can put in in ``settings/{dev/test}.py``.
-        - If the production value is the same for every one, you can make it vary in ``settings/prod.py``.
-    - **Hosted env values**: If the value has to vary on a specific, hosted env. <br/>Say that you need ``'prod.foo.com'`` in prod but the default value
-      everywhere else, you need to put your settings in  ``settings/instances/prod.py``.
-    - If the value is exposed on the environment, whenever you add/edit it, you need to add it
-        - to ``docker.env`` & ``docker.env.dist`` in dev
-        - To **ansible setup**, [Read this section of the ansible readme](./docs/README.md#plone-settings-setup).
-
+## Settings managment
+- We embrace many concepts to manage our configurations, specially 12Factors.
 
 ## Pipelines workflows tied to deploy environments and built docker images
 ### TL;DR
@@ -472,7 +303,7 @@ docker-compose -f docker-compose.yml -f docker-compose-dev.yml up {{cookiecutter
             - If you want `dev` to be deployed with the `stable` image produced by the `stable` branch, you can then set `FROM_PROMOTE=stable`.
     3. Upon successful promotion, run the ``manual_deploy_$env`` job. (eg: ``manual_deploy_dev``)
 
-
+{# no telport for now
 # Teleport (load one env from one another)
 init your vault (see [`docs/README.md`](./docs/README.md#docs#generate-vault-password-file))
 
@@ -492,3 +323,4 @@ CORPUSOPS_VAULT_PASSWORD="xxx" .ansible/scripts/setup_vaults.sh
 .ansible/scripts/call_ansible.sh -vvvv .ansible/playbooks/teleport.yml \
     -e "{teleport_mode: makinastates, teleport_destination: controller, teleport_origin: oldprod}"
 ```
+/no teleport for now#}
