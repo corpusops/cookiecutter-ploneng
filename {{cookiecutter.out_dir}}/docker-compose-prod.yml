@@ -49,6 +49,7 @@ services:
     <<: [ *restart, *log ]
     volumes:
     - backupdb-dumps:/var/db_smart_backup
+    - backupdb-dumps:/backup
 volumes:
   backupdb-dumps:
   logs:
