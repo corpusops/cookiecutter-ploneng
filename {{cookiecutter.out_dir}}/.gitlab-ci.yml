@@ -1,3 +1,4 @@
+
 image: {name: "${COMPOSE_IMAGE}", entrypoint: [""]}
 {%- set gitlabci_envs = [] %}{% for i in ['dev', 'qa', 'staging', 'prod', 'preprod']%}{% if cookiecutter[i+'_host'] %}{% set _ = gitlabci_envs.append(i)%}{%endif%}{%endfor%}
 {%- set gitlabci_branches = [] %}{% for i in gitlabci_envs %}{% set _ = gitlabci_branches.append(cookiecutter.get(i+'_branch', i)) %}{%endfor %}
