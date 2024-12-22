@@ -6,10 +6,13 @@ x-images:
   x-restart: &restart
     restart: unless-stopped
   x-{{cookiecutter.app_type}}: &{{cookiecutter.app_type}}
-    <<: [ *restart ]
     image: "${{'{'}}{{cookiecutter.app_type.upper()}}_IMAGE}:${{'{'}}{{cookiecutter.app_type.upper()}}_IMAGE_VERSION}"
     volumes:
     - logs:/logs
+    - logs:/data/log
+    - logs:/data/logs
+    - backupdb-dumps:/var/db_smart_backup
+    - backupdb-dumps:/backup
 {%- if not cookiecutter.no_local_volumes %}
 {%- endif %}
 services:
@@ -30,12 +33,12 @@ services:
     ports:
     - "${PLONE__HTTP_LISTEN:-0.0.0.0}:${PLONE__HTTP_PORT:-80}:80"
   {{cookiecutter.app_type}}:
-    <<: [ *{{cookiecutter.app_type}} ]
+    <<: [ *{{cookiecutter.app_type}}, *restart, *log ]
     ports:
-    - "${PLONE__API_LISTEN:-127.0.0.1}:${PLONE__API_PORT:-8000}:8000"
+    - "${PLONE__API_LISTEN:-127.0.0.1}:${PLONE__API_PORT:-8080}:8080"
 {%- if not cookiecutter.remove_cron %}
   cron:
-    <<: [ *{{cookiecutter.app_type}} ]
+    <<: [ *{{cookiecutter.app_type}}, *restart, *log ]
 {%- endif%}
   mailcatcher:
     <<: [ *restart, *log ]
@@ -46,10 +49,12 @@ services:
   db:
     <<: [ *restart, *log ]
   backup:
-    <<: [ *restart, *log ]
+    <<: [ {% if 'zeo' in cookiecutter.db_mode%}*{{cookiecutter.app_type}}, {%endif%}*restart, *log ]
+{%- if 'zeo' not in cookiecutter.db_mode%}
     volumes:
     - backupdb-dumps:/var/db_smart_backup
     - backupdb-dumps:/backup
+{%- endif %}
 volumes:
   backupdb-dumps:
   logs:

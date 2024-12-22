@@ -12,7 +12,7 @@ x-images:
       CORS_ALLOW_METHODS: "${CORS_ALLOW_METHODS:-DELETE,GET,OPTIONS,PATCH,POST,PUT}"
       CORS_ALLOW_CREDENTIALS: "${CORS_ALLOW_CREDENTIALS:-true}"
       CORS_EXPOSE_HEADERS: "${CORS_EXPOSE_HEADERS:-Content-Length,X-My-Header}"
-      CORS_ALLOW_HEADERS: "${CORS_ALLOW_HEADERS:-Accept,Authorization,Content-Type,X-Custom-Header,Lock-Token}"
+      CORS_ALLOW_HEADERS: "${CORS_ALLOW_HEADERS:-Authorization,Content-Type,Accept,Origin,User-Agent,DNT,Cache-Control,X-Mx-ReqToken,Keep-Alive,X-Requested-With,If-Modified-Since}"
       CORS_MAX_AGE: "${CORS_MAX_AGE:-3600}"
 {%- if cookiecutter.cache_system%}
 {%-  if cookiecutter.cache_system == 'redis' %}
@@ -56,7 +56,7 @@ x-images:
       MAILCATCHER_PASSWORD: "${MAILCATCHER_PASSWORD:-mailcatcher}"
   {{cookiecutter.app_type}}: &{{cookiecutter.app_type}}
     <<: [ *env ]
-    ipc: "service:{{cookiecutter.app_type}}"
+    # ipc: "service:{{cookiecutter.app_type}}"
     tty: true
     # latest image is only used in prod (without dev & test tools)
     image: "${{'{'}}{{cookiecutter.app_type.upper()}}_IMAGE}:${{'{'}}{{cookiecutter.app_type.upper()}}_IMAGE_VERSION}-dev"
@@ -196,7 +196,7 @@ services:
     - nginx-htpasswd:/etc/htpasswd
   {{cookiecutter.app_type}}:
     <<: [ *{{cookiecutter.app_type}} ]
-    ipc: shareable
+    # ipc: shareable
 {%- if not cookiecutter.remove_cron %}
   cron:
     <<: [ *{{cookiecutter.app_type}} ]

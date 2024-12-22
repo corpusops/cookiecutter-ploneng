@@ -114,6 +114,7 @@ variables: &variables
   SDEBUG: "$NO_SILENT"
   SHELL_DEBUG: "${NO_SILENT}"
   CA_CERTIFICATES_PATHS: "${CA_CERTIFICATES_PATHS}"
+  APP_TYPE: {{cookiecutter.app_type}}
 {%-if cookiecutter.use_submodule_for_deploy_code%}
   # auto upgrade common glue code to reference stable branch (see pullsubmodules)
   PROJECT_COMMON_DEPLOY_DIR: {{cookiecutter.deploy_project_dir}}
@@ -178,15 +179,15 @@ before_script: &top_before_script
     fi
    }
    adddockertag() {
-    dockerregistertag ${1//:/:zeo}     $(eval echo ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${2//:/:zeo})
-    dockerregistertag ${1//:/:zeo}-dev $(eval echo ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${2//:/:zeo}-dev)
+    dockerregistertag ${1//:/:zeo-}     $(eval echo ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${2//:/:zeo})
+    dockerregistertag ${1//:/:zeo-}-dev $(eval echo ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${2//:/:zeo}-dev)
     dockerregistertag ${1}     $(eval echo ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${2})
     dockerregistertag ${1}-dev $(eval echo ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${2}-dev)
    }
    bx_adddockertag() {
     if [ "$1" != "$(eval echo ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${2})" ];then
-      retry_cmd vv docker buildx imagetools create ${1//:/:zeo}     -t $(eval echo ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:zeo-${2})
-      retry_cmd vv docker buildx imagetools create ${1//:/:zeo}-dev -t $(eval echo ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:zeo-${2})-dev
+      retry_cmd vv docker buildx imagetools create ${1//:/:zeo-}     -t $(eval echo ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:zeo-${2})
+      retry_cmd vv docker buildx imagetools create ${1//:/:zeo-}-dev -t $(eval echo ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:zeo-${2})-dev
       retry_cmd vv docker buildx imagetools create ${1}     -t $(eval echo ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${2})
       retry_cmd vv docker buildx imagetools create ${1}-dev -t $(eval echo ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${2})-dev
     else
@@ -356,12 +357,12 @@ cleanup_all: &cleanup_all
     dc_() {
       ( : \
       && cimg=$(dcompose_bx_ --print "$@"|get_img) \
-      && cachetag="$(echo ${BUILT_REF_DOCKER_IMAGE}-cache-${cachesuf})" \
+      && cachetag="$(echo ${BUILT_REF_DOCKER_IMAGE}-cache-${service}-${cachesuf})" \
       && vv dcompose_bx_ \
           $( if [ "x${MULTISTAGE_TARGET}" != "x" ];then echo '--set '"*.target=${MULTISTAGE_TARGET}";fi; ) \
-          $( if [ "x${BUILD_BASE_IMAGE}" != "x" ];then echo '--set '"*.args.BASE=$(eval echo ${BUILD_BASE_IMAGE})";fi; ) \
-          $( if [ "x${PROD_BASE_IMAGE}" != "x" ];then echo '--set '"*.args.BASE=$(eval echo ${PROD_BASE_IMAGE})";fi; ) \
-          $( if [ "x${ZEO_BASE_IMAGE}" != "x" ];then echo '--set '"*.args.BASE=$(eval echo ${ZEO_BASE_IMAGE})";fi; ) \
+          $( if [ "x${BUILD_BASE_IMAGE}" != "x" ];then echo '--set '"*.args.BUILD_BASE_IMAGE=$(eval echo ${BUILD_BASE_IMAGE})";fi; ) \
+          $( if [ "x${PROD_BASE_IMAGE}" != "x" ];then echo '--set '"*.args.PROD_BASE_IMAGE=$(eval echo ${PROD_BASE_IMAGE})";fi; ) \
+          $( if [ "x${ZEO_BASE_IMAGE}" != "x" ];then echo '--set '"*.args.ZEO_BASE_IMAGE=$(eval echo ${ZEO_BASE_IMAGE})";fi; ) \
           --set "*.cache-to=type=local,dest=${docker_cache}.new,mode=max" \
           --set "*.cache-from=type=local,src=${docker_cache}" \
           --set "*.cache-to=type=registry,ref=${cachetag},mode=max" \
@@ -372,18 +373,19 @@ cleanup_all: &cleanup_all
       && dcexport="$(dcompose_bx_ --print $service|jq -r .target.$service)" && cimg="$(echo "$dcexport"|jq -r .tags[0])" \
       && log "Using buildkit to build $cimg :-: $dcexport" \
       && vv bx_dc ${service} $@; ); }
-    vv dcompose_bx_build {{cookiecutter.app_type}} dev  ${COMPOSE_DEV_CONFIGS}
-    vv dcompose_bx_build {{cookiecutter.app_type}} prod ${COMPOSE_PROD_CONFIGS}
-    vv dcompose_bx_build zeo dev  ${COMPOSE_DEV_CONFIGS}
-    vv dcompose_bx_build zeo prod ${COMPOSE_PROD_CONFIGS}
+    services="$APP_TYPE db"
+    for s in $services;do
+      vv dcompose_bx_build $s dev  ${COMPOSE_DEV_CONFIGS}
+      vv dcompose_bx_build $s prod ${COMPOSE_PROD_CONFIGS}
+    done
     # tag & record images for next step push
     dev_tags="";prod_tags="";
     zeo_dev_tags="";zeo_prod_tags="";
     if ( echo ${CI_COMMIT_REF_NAME} | grep -E -q "$TAGGUABLE_IMAGE_BRANCH" );then
       dev_tags="$dev_tags   $(echo ${BUILT_REF_DOCKER_IMAGE}-dev)"
       prod_tags="$prod_tags $(echo ${BUILT_REF_DOCKER_IMAGE})"
-      zeo_dev_tags="$dev_tags   $(echo ${ZEO_BUILT_REF_DOCKER_IMAGE}-dev)"
-      zeo_prod_tags="$prod_tags $(echo ${ZEO_BUILT_REF_DOCKER_IMAGE})"
+      zeo_dev_tags="$zeo_dev_tags   $(echo ${ZEO_BUILT_REF_DOCKER_IMAGE}-dev)"
+      zeo_prod_tags="$zeo_prod_tags $(echo ${ZEO_BUILT_REF_DOCKER_IMAGE})"
     fi
     if [ "x${CI_COMMIT_REF_NAME}" = "x${MAIN_BRANCH}" ];then
       dev_tags="$dev_tags   $(echo ${BUILT_LATEST_DOCKER_IMAGE}-dev)"
@@ -391,11 +393,15 @@ cleanup_all: &cleanup_all
       zeo_dev_tags="$zeo_dev_tags   $(echo ${ZEO_BUILT_LATEST_DOCKER_IMAGE}-dev)"
       zeo_prod_tags="$zeo_prod_tags $(echo ${ZEO_BUILT_LATEST_DOCKER_IMAGE})"
     fi
-    if [ "x${dev_tags}" != "x" ];then  vv retry_cmd dcompose_bx_build {{cookiecutter.app_type}} dev  ${COMPOSE_DEV_CONFIGS}  $(bx_bake_tags $dev_tags);fi
-    if [ "x${prod_tags}" != "x" ];then vv retry_cmd dcompose_bx_build {{cookiecutter.app_type}} prod ${COMPOSE_PROD_CONFIGS} $(bx_bake_tags $prod_tags);fi
-    if [ "x${zeo_dev_tags}" != "x" ];then  vv retry_cmd dcompose_bx_build zeo dev  ${COMPOSE_DEV_CONFIGS}  $(bx_bake_tags $zeo_dev_tags);fi
-    if [ "x${zeo_prod_tags}" != "x" ];then vv retry_cmd dcompose_bx_build zeo prod ${COMPOSE_PROD_CONFIGS} $(bx_bake_tags $zeo_prod_tags);fi
-    for s in {{cookiecutter.app_type}} zeo;do for c in dev prod;do swap_cache_folder ${DOCKER_CACHE}/$c/$s;done;done
+    if [ "x${dev_tags}" != "x" ];then
+      vv retry_cmd dcompose_bx_build $APP_TYPE dev ${COMPOSE_DEV_CONFIGS} $(bx_bake_tags $dev_tags)
+      vv retry_cmd dcompose_bx_build db        dev ${COMPOSE_DEV_CONFIGS} $(bx_bake_tags $zeo_dev_tags)
+    fi
+    if [ "x${prod_tags}" != "x" ];then
+      vv retry_cmd dcompose_bx_build $APP_TYPE prod ${COMPOSE_PROD_CONFIGS} $(bx_bake_tags $prod_tags)
+      vv retry_cmd dcompose_bx_build db        prod ${COMPOSE_PROD_CONFIGS} $(bx_bake_tags $zeo_prod_tags)
+    fi
+    for s in $services;do for c in dev prod;do swap_cache_folder ${DOCKER_CACHE}/$c/$s;done;done
 
 {{docscomment and frontcomment}}.build_artifacts: &build_artifacts
 {{docscomment and frontcomment}}  <<: [ *ci_runner ]
@@ -450,6 +456,7 @@ build_ci_images: &build_ci_images
   - if: "$CI_COMMIT_REF_NAME == $MAIN_BRANCH"
     changes:
       paths:
+      - "mx.ini"
       - "*Dockerfile*"
       - "requirements/*"
       - "setup.{py,cfg}"
@@ -490,6 +497,7 @@ build_ci_images: &build_ci_images
 {{docscomment}}  - if: "$CI_COMMIT_REF_NAME == $MAIN_BRANCH"
 {{docscomment}}    changes:
 {{docscomment}}      paths:
+{{docscomment}}      - "mx.ini"
 {{docscomment}}      - "{apt,yum,apk}.txt"
 {{docscomment}}      - "docker-compose*.yml"
 {{docscomment}}      - "*Dockerfile*doc*"
@@ -575,7 +583,7 @@ force_build_ci_images: &force_build_ci_images
 {%- endif %}
       MAILCATCHER_USER: "mailcatcher"
       MAILCATCHER_PASSWORD: "mailcatcher"
-      # sync from compose:{{cookiecutter.app_type}}
+      # sync from compose:$APP_TYPE
       EXTRA_USER_DIRS: "{% if cookiecutter.with_ftp%}/ftp{%endif%}"
   #rules:
   ## do not run tests on deploy branches
@@ -619,7 +627,7 @@ force_build_ci_images: &force_build_ci_images
     if ( grep -q "\snginx" /etc/hosts );then echo "$(grep "\snginx" /etc/hosts|awk '{print $1}') $NGINX_SERVERNAME" >>/etc/hosts;fi
     grep -E "^[^#].*\s($NGINX_SERVERNAME|db|mysql|cache|redis|varnish|nginx|memcach|cron|mailcatcher)" /etc/hosts >> "${COMMON_HOSTS_FILE}.tmp"
     export {{cookiecutter.app_type.upper()}}_IP="${FORCED_{{cookiecutter.app_type.upper()}}_IP:-$(ip -4 r get 8.8.8.8|grep src|awk '{print $7}')}"
-    echo "${{cookiecutter.app_type.upper()}}_IP cron {{cookiecutter.app_type}}" >> "${COMMON_HOSTS_FILE}.tmp"
+    echo "${{cookiecutter.app_type.upper()}}_IP cron $APP_TYPE" >> "${COMMON_HOSTS_FILE}.tmp"
     mv "${COMMON_HOSTS_FILE}.tmp" "${COMMON_HOSTS_FILE}"
   - &setup_tests |-
     if [ -e /app/venv/bin/activate ];then . /app/venv/bin/activate;fi
@@ -638,9 +646,7 @@ force_build_ci_images: &force_build_ci_images
 {{testsc}}{%-     set _ = cfgs.extend(['cron']) %}
 {{testsc}}{%-   endif %}
 {{testsc}}{%- endif %}
-{{testsc}}    /app/init/init.sh ./manage.py migrate
 {{testsc}}    /app/init/init.sh ./manage.py compilemessages
-{{testsc}}    /app/init/init.sh ./manage.py collectstatic --no-input
 {{testsc}}    ( export SUPERVISORD_CONFIGS='{{cfgs|join(' ')}}';vv /app/init/init.sh supervisord.sh)&
 {{testsc}}  - &do_tests |-
 {{testsc}}    set -e && /app/init/init.sh tox --direct-yolo -e {{ cookiecutter.test_coverage and 'coverage' or 'tests' }}
@@ -805,7 +811,7 @@ manual_deploy_{{i}}: &manual_deploy_{{i}}
   - *remove_commonhosts_file
 
 promote_all_envs: &main_promote_all_envs
-  <<: [ *manual_releasable, *promote ]
+  <<: [ *manual_releasable, *promote, *ci_runner ]
 
 promote_single_env: &promote_single_env
   <<: [ *manual_releasable, *promote ]
@@ -852,7 +858,6 @@ promote_and_deploy_{{i}}: { <<: [ *promote_and_deploy_{{i}} ], stage: post_relea
 {{teleportcomment}}  allow_failure: true
 {{teleportcomment}}  only: [{%if not cookiecutter.no_tags_pipelines%}tags, {%endif%}{{cookiecutter.main_branch}}, deploy]
 {{teleportcomment}}  stage: manual_jobs
-{{teleportcomment}}  variables: &teleport_env_vars
 {{teleportcomment}}    <<: [ *deploy_vars ]
 {{teleportcomment}}    orig: ""
 {{teleportcomment}}    dest: ""

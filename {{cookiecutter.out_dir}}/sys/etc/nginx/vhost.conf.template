@@ -34,6 +34,7 @@
 {{'{{-'}} $v := merge $v ( dict "private_dir"                 ( .Env.BASE_DIR | default ( print $v.base_dir "/private" ))                    ) }}
 {{'{{-'}} $v := merge $v ( dict "data_dir"                 ( .Env.BASE_DIR | default ( print $v.base_dir "/data" ))                    ) }}
 {{'{{-'}} $v := merge $v ( dict "maintenance_flag"            ( .Env.NGINX_PLONE_MAINT_FLAG | default ( print $v.data_dir "/flags/MAINTENANCE" ) ) ) }}
+{{'{{-'}} $v := merge $v ( dict "plonesite"            ( .Env.PLONE_SITE | default ( print "Plone" ) ) ) }}
 
 
 # optimize internal nginx buffers
@@ -52,7 +53,9 @@ proxy_busy_buffers_size 256k;
 # logging setup
 log_format custom_combined '"$remote_addr" - $remote_user [$time_local] "$request" $status $bytes_sent "$http_referer" "$http_user_agent" "$gzip_ratio"';
 # Define type of requests going to logs (to remove OPTIONS requests for example)
-map $request_method $method_loggable { OPTIONS 0;default 1;}
+map $request_method $method_loggablem { OPTIONS 0;default 1;}
+map $uri            $method_loggableu { "~/ok/?$" 0;default 1;}
+map $method_loggablem$method_loggableu $method_loggable { "~0" 0;default 1;}
 
 # activate real_ip logging
 real_ip_header {{'{{'}}$v.real_ip_header}};
@@ -92,6 +95,22 @@ map $http_x_forwarded_host $best_http_host {
     ''               $this_host;
 }
 
+{{'{{'}} define "notimeout" }}
+# 10 days timeout
+proxy_connect_timeout   864000;
+proxy_send_timeout      864000;
+proxy_read_timeout      864000;
+send_timeout            864000;
+{{'{{'}} end }}
+
+{{'{{'}} define "cors" }}
+add_header Access-Control-Allow-Origin $allow_origin;
+add_header Access-Control-Allow-Credentialsert 'true';
+add_header Access-Control-Max-Age $cors_max_age;
+add_header Access-Control-Allow-Methods $cors_allow_methods;
+add_header Access-Control-Allow-Headers $cors_allow_headers;
+{{'{{'}} end }}
+
 {{'{{'}} define "apipass" }}
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header Host $http_host;
@@ -104,6 +123,7 @@ map $http_x_forwarded_host $best_http_host {
         add_header Pragma "no-cache";
         add_header Cache-Control "private, max-age=0, no-cache, no-store";
 {{'{{'}} end }}
+upstream up_plone { server plone:8080; }
 server {
     listen 80;
 
@@ -151,7 +171,7 @@ server {
     gzip_http_version 1.1;
     gzip_min_length 256;
     gzip_comp_level 4;
-    client_max_body_size 100M;
+    client_max_body_size 1000G;
     # feed the map variables for ssl up
     set $http_x_ssl                $http_x_ssl_resolved;
     set $http_x_forwarded_proto    $http_x_forwarded_proto_resolved;
@@ -208,37 +228,14 @@ server {
 {{'{{'}} end }}
 {%- endif %}
 
-    {{'{{'}} if ne .nostatics "1" }}
-    location ~ ^/static(?<subpath>.*) {
-        root {{'{{'}}.static_dir}}/;
-        try_files $subpath =404;
-
-        # static optimisations
-        tcp_nodelay off;
-        sendfile on;
-        # Set the OS file cache.
-        open_file_cache max=3000 inactive=300s;
-        open_file_cache_valid 60s;
-        open_file_cache_min_uses 2;
-        open_file_cache_errors off;
-
-        add_header Pragma "cache";
-        add_header Cache-Control "public";
+    location /zmiroot/ {
+        {{'{{'}} template "notimeout" }}
+        rewrite ^/(.*)$ /VirtualHostBase/$forwarded_ssl_scheme/$best_http_host:$forwarded_server_port/VirtualHostRoot/$1 break;
+        proxy_pass  http://up_plone;
     }
-    {{'{{'}} end }}
-
-    location ~ ^/(api/) {
-        {{'{{'}} template "apipass" . }}
-        # auth_basic off;
-    }
-
-    location ~ ^{{cookiecutter.media_uri}}(?<subpath>.*) {
-        root {{'{{'}}.media_dir}}/;
-        try_files $subpath =404;
-    }
-
     location / {
-        {{'{{'}} template "apipass" . }}
+        rewrite ^/(.*)$ /VirtualHostBase/$forwarded_ssl_scheme/$best_http_host:$forwarded_server_port/{{.plonesite}}/VirtualHostRoot/$1 break;
+        proxy_pass  http://up_plone;
     }
 
     location ~ ^/mailcatcher/ {
