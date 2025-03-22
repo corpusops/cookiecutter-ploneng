@@ -4,6 +4,7 @@ rsync
 make
 # runtime dependencies
 {%- set uver = cookiecutter.ubuntu_image.split(':')[1].split('.')[0] | int %}
+iproute2
 binutils
 busybox
 ca-certificates
