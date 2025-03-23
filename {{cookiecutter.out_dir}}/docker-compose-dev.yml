@@ -39,6 +39,7 @@ x-images:
 {%- endif%}
 {%- endmacro %}
 {{- plone_assets() }}
+    - ./mx.ini:/app/mx.ini
     - ./tox.ini:/app/tox.ini
     - ./.tox:/app/.tox
     - ./requirements:/app/requirements
