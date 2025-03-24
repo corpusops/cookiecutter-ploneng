@@ -1,14 +1,13 @@
 version: '{{cookiecutter.compose_version}}'
 x-images:
   {{cookiecutter.app_type}}: &{{cookiecutter.app_type}}
-    build: {context: ".", args: {BUILD_DEV: "y"}}
+    build: &build {context: ".", args: {BUILD_DEV: "y"}}
 services:
   {{cookiecutter.app_type}}: {<<: [ *{{cookiecutter.app_type}} ]}
 {%- if not cookiecutter.remove_cron %}
   cron:
     <<: [ *{{cookiecutter.app_type}} ]
-  zeo:
-    <<: [ *{{cookiecutter.app_type}} ]
+  db: &db {<<: [ *plone ], build: {<<: [ *build ], dockerfile: Dockerfile.zeo}}
   backup:
     <<: [ *{{cookiecutter.app_type}} ]
 {%- endif %}
