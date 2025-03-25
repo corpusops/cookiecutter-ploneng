@@ -62,6 +62,8 @@ x-images:
 {%- endif %}
       MAILCATCHER_USER: "${MAILCATCHER_USER:-mailcatcher}"
       MAILCATCHER_PASSWORD: "${MAILCATCHER_PASSWORD:-mailcatcher}"
+      PLONE_ADMIN_PASSWORD: "${PLONE_ADMIN_PASSWORD:-admin}"
+      COLLECTIVE_EXPORTIMPORT_BLOB_HOME: "${COLLECTIVE_EXPORTIMPORT_BLOB_HOME:-/oldblob}"
   {{cookiecutter.app_type}}: &{{cookiecutter.app_type}}
     <<: [ *env ]
     # ipc: "service:{{cookiecutter.app_type}}"
@@ -91,8 +93,10 @@ x-images:
 {%- endmacro %}
 {%- macro plone_assets() %}
     - "${DATA_VOLUME:-./data}:/app/data"
-    - pdata:/data
+    - "${DATA_VOLUME:-./data}/import:/app/import"
+    - "${OLD_BLOB_PATH:-./data/oldblob}:/oldblob:ro"
     - docs:/app/outdocs
+    - idata:/data
 {%- if cookiecutter.with_ftp %}
     - "ftp-root:${PLONE__FTP_ROOT:-/ftp}"
 {%- endif %}
@@ -222,8 +226,8 @@ volumes:
   postgresql:
 {% else %}
   data:
-  pdata:
 {%- endif%}
+  idata:
 {%- if cookiecutter.cache_system in ['redis']%}
   {{cookiecutter.cache_system}}:
 {%- endif%}
