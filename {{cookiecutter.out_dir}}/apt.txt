@@ -13,6 +13,7 @@ curl
 gettext
 git
 gosu
+iproute2
 less
 libmagic1
 libsoup2.4-1

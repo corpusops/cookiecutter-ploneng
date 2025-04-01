@@ -94,7 +94,8 @@ x-images:
 {%- macro plone_assets() %}
     - "${DATA_VOLUME:-./data}:/app/data"
     - "${DATA_VOLUME:-./data}/import:/app/import"
-    - "${OLD_BLOB_PATH:-./data/oldblob}:/oldblob:ro"
+    - "${OLD_BLOB_PATH:-./data/oldblob/storage}:/oldblob:ro"
+    - "${OLD_BLOB_ROOT:-./data/oldblob}:/oldblob/root:ro"
     - docs:/app/outdocs
     - idata:/data
 {%- if cookiecutter.with_ftp %}
